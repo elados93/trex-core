@@ -28,15 +28,6 @@ c.connect()
 c.acquire(ports = my_ports)
 c.set_service_mode(ports = my_ports, enabled = True)
 
-
-# c.set_namespace(1, method='add_node', mac = "00:00:00:01:00:08", shared_ns = True)
-# c.set_namespace(1, method='set_ipv4', mac = "00:00:00:01:00:08",
-#                                         ipv4 = "1.1.2.3",
-#                                         dg = "8.8.8.8",
-#                                         shared_ns = "ns")
-
-
-
 bird_cfg = BirdCFGCreator()
 bgp_data1 = """
     local 1.1.1.3 as 65000;
