@@ -59,7 +59,9 @@ c.set_bird_node(node_port      = 0,
                 ipv4           = "1.1.1.3",
                 ipv4_subnet    = 24,
                 ipv6_enabled   = True,
-                ipv6_subnet    = 124)
+                ipv6_subnet    = 124,
+                vlans          = [22],
+                tpid           = [0x8100])
 
 c.set_bird_node(node_port      = 1,
                 mac            = "00:00:00:01:00:08",

@@ -1528,8 +1528,8 @@ class TRexClient(object):
 
             cmds = NSCmds()
             cmds.add_node(mac, is_bird=True)
-            cmds.set_ipv4(mac, ipv4, subnet=ipv4_subnet, is_bird=True)
-            cmds.set_ipv6(mac, ipv6_enabled, subnet=ipv6_subnet, is_bird=True)
+            cmds.set_ipv4(mac, ipv4, subnet=ipv4_subnet, shared_ns=True)
+            cmds.set_ipv6(mac, ipv6_enabled, subnet=ipv6_subnet, shared_ns=True)
             if vlans is not None:
                 ver_args = {"types":[{"name": "vlans", 'arg': vlans, "t": list}]}
                 ArgVerify.verify(self.__class__.__name__, ver_args)
