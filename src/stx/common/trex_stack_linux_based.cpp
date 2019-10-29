@@ -150,6 +150,7 @@ CStackLinuxBased::CStackLinuxBased(RXFeatureAPI *api, CRXCoreIgnoreStat *ignore_
     get_platform_api().getPortAttrObj(api->get_port_id())->set_multicast(true); // We need multicast for IPv6
     m_next_namespace_id = 0;
     m_next_bird_if_id = 0;
+    m_next_shared_ns_if_id = 0;
 }
 
 CStackLinuxBased::~CStackLinuxBased() {
@@ -157,7 +158,7 @@ CStackLinuxBased::~CStackLinuxBased() {
     assert(m_epoll_fd);
     close(m_epoll_fd);
     if ( m_is_initialized && CGlobalInfo::m_options.m_is_bird_enabled ) {
-        kill_bird_and_ns();
+        kill_bird_ns();
         m_is_initialized = false;
     }
 }
@@ -227,7 +228,7 @@ string CStackLinuxBased::mac_str_to_mac_buf(const std::string & mac){
     throw (TrexRpcCommandException(TREX_RPC_CMD_PARSE_ERR,"wrong mac format"));
 }
 
-trex_rpc_cmd_rc_e CStackLinuxBased::rpc_add_node(const std::string & mac){
+trex_rpc_cmd_rc_e CStackLinuxBased::rpc_add_node(const std::string & mac) {
     /* this is RPC command */
     try {
         CNamespacedIfNode *node = (CNamespacedIfNode *)add_node_internal(mac_str_to_mac_buf(mac));
@@ -238,10 +239,12 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_add_node(const std::string & mac){
     return (TREX_RPC_CMD_OK);
 }
 
-trex_rpc_cmd_rc_e CStackLinuxBased::rpc_add_bird_node(const std::string & mac){
+trex_rpc_cmd_rc_e CStackLinuxBased::rpc_add_shared_ns_node(const std::string & mac, 
+                                                        bool is_bird,
+                                                        const string &shared_ns){
     /* this is RPC command */
     try {
-        CNamespacedIfNode *node = (CNamespacedIfNode *)add_bird_node_internal(mac_str_to_mac_buf(mac));
+        CNamespacedIfNode *node = (CNamespacedIfNode *)add_shared_ns_node_internal(mac_str_to_mac_buf(mac), is_bird, shared_ns);
         node->set_associated_trex(false); /* from RPC we need to mark them as namespace ! */
     } catch (const TrexException &ex) {
         throw TrexRpcException(ex.what());
@@ -258,6 +261,12 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_remove_node(const std::string & mac){
     return (TREX_RPC_CMD_OK);
 }
 
+trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_filter(const std::string &mac, const std::string &filter) {
+    CNamespacedIfNode * lp = get_node_rpc(mac);
+    lp->set_filter(filter);
+    return (TREX_RPC_CMD_OK);
+}
+
 trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_vlans(const std::string & mac,
                                                   const vlan_list_t &vlan_list,
                                                   const vlan_list_t &tpid_list) {
@@ -269,7 +278,7 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_vlans(const std::string & mac,
     return (TREX_RPC_CMD_OK);
 }
 
-trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_ipv4(const std::string & mac,
+trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_ipv4(const std::string &mac,
                                                  std::string ip4_buf,
                                                  std::string gw4_buf) {
     CNamespacedIfNode * lp = get_node_rpc(mac);
@@ -281,12 +290,12 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_ipv4(const std::string & mac,
     return (TREX_RPC_CMD_OK);
 }
 
-trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_ipv4_bird(const std::string &mac,
-                                                      std::string ip4_buf,
+trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_shared_ns_ipv4(const std::string &mac,
+                                                      const std::string &ip4_buf,
                                                       uint8_t subnet) {
     CNamespacedIfNode * lp = get_node_rpc(mac);
     try {
-        lp->conf_ip4_internal_bird(ip4_buf, subnet);
+        lp->conf_shared_ns_ip4_internal(ip4_buf, subnet);
     } catch (const TrexException &ex) {
         throw TrexRpcException(ex.what());
     }
@@ -304,12 +313,14 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_clear_ipv4(const std::string & mac){
     return (TREX_RPC_CMD_OK);
 }
 
-trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_ipv6(const std::string & mac,bool enable, std::string src_ipv6_buf){
-    CNamespacedIfNode * lp=get_node_rpc(mac);
+trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_ipv6(const std::string & mac,
+                                                    bool enable,
+                                                    std::string src_ipv6_buf){
+    CNamespacedIfNode * lp = get_node_rpc(mac);  
     try {
         if (enable) {
             lp->conf_ip6_internal(true, src_ipv6_buf);
-        }else{
+        } else {
             lp->clear_ip6_internal();
         }
     } catch (const TrexException &ex) {
@@ -318,11 +329,11 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_ipv6(const std::string & mac,bool en
     return (TREX_RPC_CMD_OK);
 }
 
-trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_ipv6_bird(const std::string &mac,bool enable, std::string src_ipv6_buf, uint8_t subnet) {
+trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_shared_ns_ipv6(const std::string &mac,bool enable, std::string src_ipv6_buf, uint8_t subnet) {
     CNamespacedIfNode * lp=get_node_rpc(mac);
     try {
         if (enable) {
-            lp->conf_ip6_internal_bird(true, src_ipv6_buf, subnet);
+            lp->conf_shared_ns_ip6_internal(true, src_ipv6_buf, subnet);
         } else {
             lp->clear_ip6_internal();
         }
@@ -346,13 +357,8 @@ void CStackLinuxBased::run_in_ns(const string &cmd, const string &err) {
     popen_with_err(("ip netns exec "  + m_bird_ns + " bash -c " + "\"" + cmd + "\"").c_str(), "cannot run " + cmd + " in ns " + m_bird_ns);
 }
 
-void CStackLinuxBased::kill_bird_and_ns() {
+void CStackLinuxBased::kill_bird_ns() {
     string out = "";
-    popen_with_output("pgrep trex_bird", "cannot get bird pid!", false, out);
-    if ( out != "" ) {
-        popen_with_err("kill $(pgrep trex_bird)", "Error killing bird");
-    }
-    out = "";
     popen_with_output("ip netns list", "cannot get namespaces", false, out);
     if ( out.find(m_bird_ns) != string::npos) {
         popen_with_err("ip netns delete " + m_bird_ns, "Error deleting bird-ns namespace");
@@ -429,19 +435,29 @@ uint16_t CStackLinuxBased::handle_tx(uint16_t limit) {
     return event_count;
 }
 
-CNodeBase* CStackLinuxBased::add_bird_node_internal(const string &mac_buf) {
-    debug({" add_bird_node_internal  ", utl_macaddr_to_str((uint8_t *)mac_buf.data())} );
-
-    string mac_str = utl_macaddr_to_str((uint8_t *)mac_buf.data());
-    stringstream ss;
-    ss << m_ns_prefix << hex << (int)m_api->get_port_id() << "-B-" << m_next_bird_if_id;
-
+CNodeBase* CStackLinuxBased::add_shared_ns_node_internal(const string &mac_buf,
+                                                         bool is_bird,
+                                                         const string &shared_ns) {
+    debug({" add_shared_ns_node_internal  ", utl_macaddr_to_str((uint8_t *)mac_buf.data())} );
+    
     if ( get_node_internal(mac_buf) != nullptr ) {
-        throw TrexException("Node with MAC " + mac_str + " already exists");
+        throw TrexException("Node with MAC " + mac_buf + " already exists");
     }
 
-    CNamespacedIfNode *node = new CBirdIfNode(m_bird_ns, ss.str(), mac_str, mac_buf, m_mtu, m_mcast_filter);
-    m_next_bird_if_id++;
+    CNamespacedIfNode *node;
+    string mac_str = utl_macaddr_to_str((uint8_t *)mac_buf.data());
+    stringstream ss;
+    if ( is_bird ) {
+        ss << "bird-" << hex << (int)m_api->get_port_id() << "-" << hex << (int)m_next_bird_if_id;
+        node = new CSharedNSIfNode(m_bird_ns, ss.str(), mac_str, mac_buf, m_mtu, m_mcast_filter, true);
+        m_next_bird_if_id++;
+    } else {
+        // shared namespace node
+        ss << "ns-" << hex << (int)m_api->get_port_id() << "-" << hex << (int)m_next_shared_ns_if_id;
+        node = new CSharedNSIfNode(shared_ns, ss.str(), mac_str, mac_buf, m_mtu, m_mcast_filter, false);
+        m_next_shared_ns_if_id++;
+    }
+
     return add_linux_events_and_node(mac_buf, mac_str, node);
 }
 
@@ -454,7 +470,7 @@ CNodeBase* CStackLinuxBased::add_node_internal(const string &mac_buf) {
     }
 
     stringstream ss;
-    ss << m_ns_prefix << hex << (int)m_api->get_port_id() << "-" << m_next_namespace_id;
+    ss << m_ns_prefix << hex << (int)m_api->get_port_id() << "-" << hex << (int)m_next_namespace_id;
     CNamespacedIfNode *node = new CLinuxIfNode(ss.str(), mac_str, mac_buf, m_mtu, m_mcast_filter);
 
     if (node == nullptr) {
@@ -635,7 +651,7 @@ uint16_t CStackLinuxBased::get_capa() {
 void CStackLinuxBased::init_bird() {
     m_bird_path = get_bird_path();
     m_bird_ns = m_ns_prefix + "bird-ns";
-    kill_bird_and_ns(); // ensure bird isn't running & bird namespace isn't up
+    kill_bird_ns(); // ensure bird isn't running & bird namespace isn't up
     create_bird_ns();
     run_bird_in_ns();
 }
@@ -652,6 +668,7 @@ CNamespacedIfNode::~CNamespacedIfNode() {}
 void CNamespacedIfNode::to_json_node(Json::Value &res) {
     CNodeBase::to_json_node(res);
     res["linux-ns"] = m_ns_name;
+    res["shared-ns"] = m_shared_ns;
     res["linux-veth-internal"] = m_if_name+"-L";
     res["linux-veth-external"] = m_if_name+"-T";
 }
@@ -758,8 +775,13 @@ void CNamespacedIfNode::conf_vlan_internal(const vlan_list_t &vlans, const vlan_
         append_to_str(vlan, m_vlans_insert_to_pkt);
         bpf_str += "vlan " + to_string(vlan) + " and ";
     }
-
-    bpf_str += get_default_bpf();
+    auto default_bpf = string(get_default_bpf());
+    if ( !default_bpf.empty() ) {
+        bpf_str += get_default_bpf();
+    } else {
+        size_t lastindex = bpf_str.find_last_of(" and ") - 5; 
+        bpf_str = bpf_str.substr(0, lastindex);  // removing last " and "
+    }
     m_bpf = bpfjit_compile(bpf_str.c_str());
     m_mcast_filter->add_del_vlans(vlans.size(), m_vlan_tags.size());
     m_vlan_tags = vlans;
@@ -773,23 +795,25 @@ void CNamespacedIfNode::clear_ip4_internal() {
 }
 
 void CNamespacedIfNode::conf_ip4_internal(const string &ip4_buf, const string &gw4_buf) {
-    throw TrexException("Wrong node type, must not be bird!");
+    throw TrexException("Wrong node type, must not be shared namespace node!");
 }
 
-void CNamespacedIfNode::conf_ip4_internal_bird(const string &ip4_buf, uint8_t subnet) {
-    throw TrexException("Wrong node type, must be bird!");
+void CNamespacedIfNode::conf_shared_ns_ip4_internal(const string &ip4_buf, uint8_t subnet) {
+    throw TrexException("Wrong node type, must be shared namespace node!");
 }
 
 void CNamespacedIfNode::conf_ip6_internal(bool enabled, const string &ip6_buf) {
-    throw TrexException("Wrong node type, must not be bird!");
+    throw TrexException("Wrong node type, must not be shared namespace node!");
 }
 
-void CNamespacedIfNode::conf_ip6_internal_bird(bool enabled, const string &ip6_buf, uint8_t subnet) {
-    throw TrexException("Wrong node type, must be bird!");
+void CNamespacedIfNode::conf_shared_ns_ip6_internal(bool enabled, const string &ip6_buf, uint8_t subnet) {
+    throw TrexException("Wrong node type, must be shared namespace node!");
 }
 
 void CLinuxIfNode::conf_ip4_internal(const string &ip4_buf, const string &gw4_buf) {
-    clear_ip4_internal();
+    if ( !m_shared_ns ) {
+        clear_ip4_internal();
+    }
     char buf[INET_ADDRSTRLEN];
 
     inet_ntop(AF_INET, ip4_buf.c_str(), buf, INET_ADDRSTRLEN);
@@ -806,7 +830,7 @@ void CLinuxIfNode::conf_ip4_internal(const string &ip4_buf, const string &gw4_bu
     m_gw4 = gw4_buf;
 }
 
-void CBirdIfNode::conf_ip4_internal_bird(const string &ip4_buf, uint8_t subnet) {
+void CSharedNSIfNode::conf_shared_ns_ip4_internal(const string &ip4_buf, uint8_t subnet) {
     if ( subnet < 1 || subnet > 32 ) {
         throw TrexException("subnet: " + to_string(subnet) + " is not valid!");
     }
@@ -843,7 +867,7 @@ void CLinuxIfNode::conf_ip6_internal(bool enabled, const string &ip6_buf) {
     m_ip6 = ip6_buf;
 }
 
-void CBirdIfNode::conf_ip6_internal_bird(bool enabled, const string &ip6_buf, uint8_t subnet) {
+void CSharedNSIfNode::conf_shared_ns_ip6_internal(bool enabled, const string &ip6_buf, uint8_t subnet) {
     if ( subnet < 1 || subnet > 128 ) {
         throw TrexException("subnet: " + to_string(subnet) + " is not valid!");
     }
@@ -883,6 +907,7 @@ CLinuxIfNode::CLinuxIfNode(const string &ns_name, const string &mac_str, const s
     m_ns_name = ns_name;
     m_if_name = ns_name;
     m_associated_trex_ports = true;
+    m_shared_ns = false;
     create_ns();
     create_veths(mtu);
     set_src_mac(mac_str, mac_buf);
@@ -908,15 +933,17 @@ void CLinuxIfNode::to_json_node(Json::Value &res) {
 
 
 /***************************************
-*             CBirdIfNode              *
+*          CSharedNSIfNode             *
 ***************************************/
 
-CBirdIfNode::CBirdIfNode(const string &ns_name, const string &if_name, const string &mac_str, const string &mac_buf,
-                 const string &mtu, CMcastFilter &mcast_filter) {
-    debug("Bird node ctor");
+CSharedNSIfNode::CSharedNSIfNode(const string &ns_name, const string &if_name, const string &mac_str, const string &mac_buf,
+                 const string &mtu, CMcastFilter &mcast_filter, bool is_bird) {
+    debug("Shared namespace node ctor");
     m_ns_name = ns_name;
     m_if_name = if_name;
-    debug("Initializing Bird veth");
+    m_is_bird = is_bird;
+    m_shared_ns = true;
+    debug("Initializing Shared namespace veth");
     m_associated_trex_ports = true;
     create_veths(mtu);
     set_src_mac(mac_str, mac_buf);
@@ -924,31 +951,32 @@ CBirdIfNode::CBirdIfNode(const string &ns_name, const string &if_name, const str
     m_bpf = bpfjit_compile(get_default_bpf());
     m_mcast_filter = &mcast_filter;
     m_mcast_filter->add_empty();
+    
     m_subnet4 = 0;
     m_subnet6 = 0;
 }
 
-CBirdIfNode::~CBirdIfNode() {
-    debug("Bird node dtor");
+CSharedNSIfNode::~CSharedNSIfNode() {
+    debug("Shared namespace node dtor");
     delete_veth();
 }
 
-void CBirdIfNode::create_veths(const string &mtu) {
+void CSharedNSIfNode::create_veths(const string &mtu) {
     CNamespacedIfNode::create_veths(mtu);
     run_in_ns("ethtool -K " + m_if_name + "-L tx off rx off sg off", 
     "Could not disable rx checksum, tx checksum, and tcp segmentation for bird internal veth");
 
 }
 
-const char *CBirdIfNode::get_default_bpf() {
-    return "";
+const char *CSharedNSIfNode::get_default_bpf() {
+    return m_is_bird ? "" : "not udp and not tcp";
 }
 
-void CBirdIfNode::to_json_node(Json::Value &res) {
+void CSharedNSIfNode::to_json_node(Json::Value &res) {
     CNamespacedIfNode::to_json_node(res);
     res["ipv4"]["subnet"] = m_subnet4;
     res["ipv6"]["subnet"] = m_subnet6;
-    res["is_bird"] = true;
+    res["is_bird"] = m_is_bird;
 }
 
 

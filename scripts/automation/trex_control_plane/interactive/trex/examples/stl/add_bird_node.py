@@ -28,6 +28,15 @@ c.connect()
 c.acquire(ports = my_ports)
 c.set_service_mode(ports = my_ports, enabled = True)
 
+
+# c.set_namespace(1, method='add_node', mac = "00:00:00:01:00:08", shared_ns = True)
+# c.set_namespace(1, method='set_ipv4', mac = "00:00:00:01:00:08",
+#                                         ipv4 = "1.1.2.3",
+#                                         dg = "8.8.8.8",
+#                                         shared_ns = "ns")
+
+
+
 bird_cfg = BirdCFGCreator()
 bgp_data1 = """
     local 1.1.1.3 as 65000;
@@ -57,16 +66,18 @@ c.set_bird_config(config = cfg)  # sending our new config
 c.set_bird_node(node_port      = 0,
                 mac            = "00:00:00:01:00:07",
                 ipv4           = "1.1.1.3",
-                ipv6_enabled   = True,
                 ipv4_subnet    = 24,
+                ipv6_enabled   = True,
                 ipv6_subnet    = 124)
 
 c.set_bird_node(node_port      = 1,
                 mac            = "00:00:00:01:00:08",
                 ipv4           = "1.1.2.3",
-                ipv6_enabled   = True,
                 ipv4_subnet    = 24,
+                ipv6_enabled   = True,
                 ipv6_subnet    = 124)
 
 c.wait_for_protocols(['my_bgp1, my_bgp2'])
+c.set_namespace(0, method='get_nodes_info', macs_list=["00:00:00:01:00:07"])
+c.set_namespace(1, method='get_nodes_info', macs_list=["00:00:00:01:00:08"])
 c.disconnect()

@@ -1471,7 +1471,9 @@ class TRexClient(object):
                             ipv4,
                             ipv6_enabled,
                             ipv4_subnet,
-                            ipv6_subnet):
+                            ipv6_subnet,
+                            vlans = None,
+                            tpid = None):
         """
             a utility function that works on top of :func:`set_namespace_start` and :func:`wait_for_async_results` batch operation API. 
             it creates a batch of one command and one result.
@@ -1528,6 +1530,10 @@ class TRexClient(object):
             cmds.add_node(mac, is_bird=True)
             cmds.set_ipv4(mac, ipv4, subnet=ipv4_subnet, is_bird=True)
             cmds.set_ipv6(mac, ipv6_enabled, subnet=ipv6_subnet, is_bird=True)
+            if vlans is not None:
+                ver_args = {"types":[{"name": "vlans", 'arg': vlans, "t": list}]}
+                ArgVerify.verify(self.__class__.__name__, ver_args)
+                cmds.set_vlan(mac, vlans, tpid)
 
             self.set_namespace_start(node_port, cmds)
             self.wait_for_async_results(node_port)
