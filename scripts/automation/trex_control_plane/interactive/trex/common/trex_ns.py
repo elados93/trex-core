@@ -66,14 +66,15 @@ class NSCmds(object):
                     [{'name': "mac", 'arg': mac, 't': "mac"},
                     {'name': "is_bird", 'arg': is_bird, 't': bool}]
                    }
+        args = {'mac': mac, 'is_bird': is_bird}
         if shared_ns is not None:
             ver_args['types'].append({'name': "shared_ns", 'arg': shared_ns, 't': str})
+            args['shared_ns'] = shared_ns
         ArgVerify.verify(self.__class__.__name__, ver_args)
         
         if is_bird and shared_ns is not None:
             raise TRexError("Cannot add node with bird option and shared namespace!")
 
-        args = {'mac': mac, 'is_bird': is_bird, 'shared_ns': shared_ns}
         self.add_cmd ('add_node', **args)
         
     def remove_node (self,mac):
@@ -92,6 +93,21 @@ class NSCmds(object):
                    }
         ArgVerify.verify(self.__class__.__name__, ver_args)
         self.add_cmd ('remove_node',mac=mac)
+
+    def remove_shared_ns(self, shared_ns):
+        ver_args = {"types":
+                    [{"name": "shared_ns", 'arg': shared_ns, "t": str}]
+                   }
+        ArgVerify.verify(self.__class__.__name__, ver_args)
+        self.add_cmd ('remove_shared_ns', shared_ns = shared_ns)
+
+    def set_dg(self, shared_ns, dg):
+        ver_args = {"types":
+                    [{"name": "shared_ns", 'arg': shared_ns, "t": str},
+                    {"name": "dg", 'arg': dg, "t": "ip address"}]
+                   }
+        ArgVerify.verify(self.__class__.__name__, ver_args)
+        self.add_cmd ('set_dg', shared_ns = shared_ns, dg = dg)
 
     def set_vlan(self, mac, vlans, tpids = None):
         ''' add/remove QinQ and Dot1Q. could be up to 2 tags

@@ -49,7 +49,7 @@ trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_add_node(const Json::Value &params, 
         throw TrexException("Cannot add node with bird option and shared namespace!");
     }
 
-    if ( !shared_ns.empty() ) {
+    if ( is_bird || !shared_ns.empty() ) {
         return (m_obj->rpc_add_shared_ns_node(mac, is_bird, shared_ns));
     } else {
         return (m_obj->rpc_add_node(mac));
@@ -60,6 +60,13 @@ trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_remove_node(const Json::Value &param
     debug({"rpc_remove_node",pretty_json_str(params)});
     string mac   = parse_string(params, "mac", result);
     return (m_obj->rpc_remove_node(mac));
+}
+
+trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_remove_shared_ns(const Json::Value &params, Json::Value &result){
+    debug({"rpc_remove_shared_ns", pretty_json_str(params)});
+    string shared_ns = parse_string(params, "shared_ns", result);
+
+    return m_obj->rpc_remove_shared_ns(shared_ns);
 }
 
 trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_set_vlans(const Json::Value &params, Json::Value &result){
@@ -119,6 +126,13 @@ trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_set_filter(const Json::Value &params
     return m_obj->rpc_set_filter(mac, filter);
 }
 
+trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_set_dg(const Json::Value &params, Json::Value &result) {
+    debug({"rpc_set_dg", pretty_json_str(params)});
+    string shared_ns  = parse_string(params, "shared_ns", result);
+    string dg         = parse_string(params, "dg", result);
+
+    return m_obj->rpc_set_dg(shared_ns, dg);
+}
 
 trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_clear_ipv4(const Json::Value &params, Json::Value &result){
     debug({"rpc_clear_ipv4",pretty_json_str(params)});
@@ -214,9 +228,11 @@ void CRpcTunnelCStackBase::register_rpc_functions(){
 
     register_func("add_node",std::bind(&CRpcTunnelCStackBase::rpc_add_node, this, _1, _2));
     register_func("remove_node",std::bind(&CRpcTunnelCStackBase::rpc_remove_node, this, _1, _2));
+    register_func("remove_shared_ns",std::bind(&CRpcTunnelCStackBase::rpc_remove_shared_ns, this, _1, _2));
     register_func("set_vlans",std::bind(&CRpcTunnelCStackBase::rpc_set_vlans, this, _1, _2));
     register_func("set_ipv4",std::bind(&CRpcTunnelCStackBase::rpc_set_ipv4, this, _1, _2));
     register_func("set_filter",std::bind(&CRpcTunnelCStackBase::rpc_set_filter, this, _1, _2));
+    register_func("set_dg",std::bind(&CRpcTunnelCStackBase::rpc_set_dg, this, _1, _2));
     register_func("clear_ipv4",std::bind(&CRpcTunnelCStackBase::rpc_clear_ipv4, this, _1, _2));
     register_func("set_ipv6",std::bind(&CRpcTunnelCStackBase::rpc_set_ipv6, this, _1, _2));
     register_func("remove_all",std::bind(&CRpcTunnelCStackBase::rpc_remove_all, this, _1, _2));

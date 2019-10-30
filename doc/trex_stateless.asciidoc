@@ -5482,7 +5482,7 @@ bird_cfg.add_protocol(protocol = "bgp", name = "my_bgp1", data = bgp_data1)
 bird_cfg.add_protocol(protocol = "bgp", name = "my_bgp2", data = bgp_data2)
 bird_cfg.add_route(dst_cidr = "42.42.42.42/32", next_hop = "1.1.1.3")
 bird_cfg.add_route(dst_cidr = "42.42.42.43/32", next_hop = "1.1.2.3")
-cfg = bird_cfg.merge_to_string() # build combined configuration 
+cfg = bird_cfg.build_config() # build combined configuration 
 c.set_bird_config(config = cfg)  # sending our new config (under the hood there is a PyBird client)
 
 # create 2 veth's in bird namespace, need to move to prom mode to get. You can use the old TRex namespace API this is just a shim to layer t
@@ -5640,7 +5640,7 @@ When you want to create the config file sending it to bird, you can merge everyt
 
 [source,python]
 ----
-bird_config = bird_cfg.merge_to_string()
+bird_config = bird_cfg.build_config()
 ----
 
 Now you have your final string with all your wanted protocols and routes ready to send to bird using PyBird Client.

@@ -199,7 +199,7 @@ def send_many_routes(b, total_routes):
     import time
     start = time.time()
 
-    print("Server response: %s" % b.set_config(bird_cfg.merge_to_string()))
+    print("Server response: %s" % b.set_config(bird_cfg.build_config()))
 
     end = time.time()
     print("Took: {} seconds".format(end - start))

@@ -22,11 +22,22 @@ Topology::
                                           +------------------------------+
 """
 
-c = STLClient(verbose_level = 'debug')
+c = STLClient()
 my_ports = [0, 1]
 c.connect()
 c.acquire(ports = my_ports)
 c.set_service_mode(ports = my_ports, enabled = True)
+
+
+# c.set_namespace(0, method='add_node', mac="00:00:00:01:00:07", shared_ns = "ns")
+# c.set_namespace(0, method='set_ipv4', mac="00:00:00:01:00:07", 
+#                                         ipv4 = "1.1.1.3", subnet = 24, shared_ns = True)
+
+# c.set_namespace(0, method='set_dg', dg="1.1.1.4", shared_ns = "ns")
+# c.set_namespace(0, method='set_dg', dg="1.1.1.5", shared_ns = "ns")
+# c.set_namespace(0, method='set_dg', dg="1.1.1.6", shared_ns = "ns")
+
+# c.set_namespace(0, method='set_dg', shared_ns = "ns", dg = "0.0.0.0")
 
 bird_cfg = BirdCFGCreator()
 bgp_data1 = """
@@ -50,7 +61,7 @@ bird_cfg.add_protocol(protocol = "bgp", name = "my_bgp1", data = bgp_data1)
 bird_cfg.add_protocol(protocol = "bgp", name = "my_bgp2", data = bgp_data2)
 bird_cfg.add_route(dst_cidr = "42.42.42.42/32", next_hop = "1.1.1.3")
 bird_cfg.add_route(dst_cidr = "42.42.42.43/32", next_hop = "1.1.2.3")
-cfg = bird_cfg.merge_to_string()
+cfg = bird_cfg.build_config()
 c.set_bird_config(config = cfg)  # sending our new config
 
 # create 2 veth's in bird namespace

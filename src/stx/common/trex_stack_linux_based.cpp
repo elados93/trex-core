@@ -48,10 +48,12 @@
 
 char clean_old_nets_and_get_prefix();
 void verify_programs();
+bool is_dg_set_in_ns(const string &ns);
 void str_from_mbuf(const rte_mbuf_t *m, string &result);
 void popen_with_err(const string &cmd, const string &err);
 void popen_general(const string &cmd, const string &err, bool throw_exception, string &output);
 void popen_with_output(const string &cmd, const string &err, bool throw_exception, string &output);
+void run_in_ns(const string &cmd, const string &err, const string &ns);
 
 CMcastFilter::CMcastFilter() {
     m_vlan_nodes[0] = 0;
@@ -261,9 +263,33 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_remove_node(const std::string & mac){
     return (TREX_RPC_CMD_OK);
 }
 
+trex_rpc_cmd_rc_e CStackLinuxBased::rpc_remove_shared_ns(const std::string & shared_ns){
+    try {
+       del_shared_ns_internal(shared_ns);
+    } catch (const TrexException &ex) {
+        throw TrexRpcException(ex.what());
+    }
+    return (TREX_RPC_CMD_OK);
+}
+
 trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_filter(const std::string &mac, const std::string &filter) {
     CNamespacedIfNode * lp = get_node_rpc(mac);
     lp->set_filter(filter);
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_dg(const std::string &shared_ns, const std::string &dg) {
+    try {
+        string op = is_dg_set_in_ns(shared_ns) ? "change" : "add";   
+        run_in_ns("ip -4 route " + op + " default via " + dg, "Could not set default IPv4 gateway for veth", shared_ns);
+
+        // char buf[INET_ADDRSTRLEN];
+        // inet_ntop(AF_INET, dg.c_str(), buf, INET_ADDRSTRLEN);
+        // string gw4_str(buf);
+        // run_in_ns("ip -4 route add default via " + gw4_str, "Could not set default IPv4 gateway for veth", shared_ns);
+    } catch (const TrexException &ex) {
+        throw TrexRpcException(ex.what());
+    }
     return (TREX_RPC_CMD_OK);
 }
 
@@ -348,13 +374,12 @@ void CStackLinuxBased::create_bird_ns() {
 }
 
 void CStackLinuxBased::run_bird_in_ns() {
-    run_in_ns(" cd " + m_bird_path + "; ./trex_bird -c " + "bird.conf -s " + "bird.ctl", "Error running bird process");
-    popen_with_err("chmod 666 bird/bird.ctl", "cannot change permissions of bird.ctl for PyBird client communication");
-}
-
-void CStackLinuxBased::run_in_ns(const string &cmd, const string &err) {
-    // using "cmd" for multiple commands
-    popen_with_err(("ip netns exec "  + m_bird_ns + " bash -c " + "\"" + cmd + "\"").c_str(), "cannot run " + cmd + " in ns " + m_bird_ns);
+    string bird_tmp_files = "/tmp/trex/bird";
+    popen_with_err("mkdir -p " + bird_tmp_files, "cannot create bird tmp files at: " + bird_tmp_files);
+    stringstream cmd;
+    cmd << " cd " << m_bird_path << "; ./trex_bird -c bird.conf -s " << bird_tmp_files << "/bird.ctl";
+    run_in_ns(cmd.str(), "Error running bird process", m_bird_ns);
+    popen_with_err("chmod 666 " + bird_tmp_files + "/bird.ctl", "cannot change permissions of bird.ctl for PyBird client communication");
 }
 
 void CStackLinuxBased::kill_bird_ns() {
@@ -546,6 +571,11 @@ void CStackLinuxBased::del_node_internal(const string &mac_buf) {
     delete node;
 }
 
+void CStackLinuxBased::del_shared_ns_internal(const string &shared_ns) {
+    string cmd = "ip netns del " + shared_ns;
+    // TODO: delete all nodes? 
+    popen_with_err(cmd, "cannot remove shared ns node with name space " + shared_ns);
+}
 
 #define MAX_REMOVES_UNDER_LOCK 20
 
@@ -811,9 +841,7 @@ void CNamespacedIfNode::conf_shared_ns_ip6_internal(bool enabled, const string &
 }
 
 void CLinuxIfNode::conf_ip4_internal(const string &ip4_buf, const string &gw4_buf) {
-    if ( !m_shared_ns ) {
-        clear_ip4_internal();
-    }
+    clear_ip4_internal();
     char buf[INET_ADDRSTRLEN];
 
     inet_ntop(AF_INET, ip4_buf.c_str(), buf, INET_ADDRSTRLEN);
@@ -983,6 +1011,17 @@ void CSharedNSIfNode::to_json_node(Json::Value &res) {
 /***************************************
 *            helper func               *
 ***************************************/
+
+bool is_dg_set_in_ns(const string &ns) {
+    string out = "";
+    popen_general("ip netns exec " + ns + " ip -4 route | grep default", "cannot find default gw for namespace " + ns, false, out);
+    return out != "";
+}
+
+void run_in_ns(const string &cmd, const string &err, const string &ns) {
+    // using "cmd" for multiple commands
+    popen_with_err(("ip netns exec "  + ns + " bash -c " + "\"" + cmd + "\"").c_str(), "cannot run " + cmd + " in ns " + ns);
+}
 
 bool is_file_exists(const string &filename) {
     struct stat buf;
@@ -1195,7 +1234,6 @@ void popen_general(const string &cmd, const string &err, bool throw_exception, s
         }
     }
 }
-
 
 void popen_with_output(const string &cmd, const string &err, bool throw_exception, string &output) {
     popen_general(cmd, err, throw_exception, output); 

@@ -28,6 +28,7 @@ from .trex_psv import *
 from .trex_vlan import VLAN
 from .trex_api_annotators import client_api, console_api
 from trex.pybird.bird_zmq_client import *
+from ..astf.arg_verify import ArgVerify
 
 from .stats.trex_stats import StatsBatch
 from .stats.trex_global_stats import GlobalStats, UtilStats

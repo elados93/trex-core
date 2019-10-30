@@ -149,8 +149,10 @@ public:
     virtual trex_rpc_cmd_rc_e rpc_add_node(const std::string & mac);
     virtual trex_rpc_cmd_rc_e rpc_add_shared_ns_node(const std::string & mac, bool is_bird, const string &shared_ns);
     virtual trex_rpc_cmd_rc_e rpc_remove_node(const std::string & mac);
+    virtual trex_rpc_cmd_rc_e rpc_remove_shared_ns(const std::string & shared_ns);
     virtual trex_rpc_cmd_rc_e rpc_set_vlans(const std::string & mac, const vlan_list_t &vlan_list, const vlan_list_t &tpid_list);
     virtual trex_rpc_cmd_rc_e rpc_set_filter(const std::string & mac, const std::string &filter);
+    virtual trex_rpc_cmd_rc_e rpc_set_dg(const std::string & shared_ns, const std::string &dg);
     virtual trex_rpc_cmd_rc_e rpc_set_ipv4(const std::string &mac, std::string ip4_buf, std::string gw4_buf);
     virtual trex_rpc_cmd_rc_e rpc_set_shared_ns_ipv4(const std::string &mac, const std::string &ip4_buf, uint8_t subnet);
     virtual trex_rpc_cmd_rc_e rpc_clear_ipv4(const std::string & mac);
@@ -172,11 +174,11 @@ private:
     CNodeBase* add_shared_ns_node_internal(const string &mac_buf, bool is_bird, const string &shared_ns);
     CNodeBase *add_linux_events_and_node(const string &mac_buf, const string &mac_str, CNamespacedIfNode *node);
     void del_node_internal(const std::string &mac_buf);
+    void del_shared_ns_internal(const std::string &shared_ns);
     CNamespacedIfNode * get_node_by_mac(const std::string &mac);
     CNamespacedIfNode * get_node_rpc(const std::string &mac);
     void create_bird_ns();
     void run_bird_in_ns();
-    void run_in_ns(const string &cmd, const string &err);
     void kill_bird_ns();
     const string get_bird_path();
 

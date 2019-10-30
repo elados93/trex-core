@@ -71,7 +71,7 @@ class BirdCFGCreator:
         for r in results:
             self.routes.remove(r)
 
-    def merge_to_string(self):
+    def build_config(self):
         strings_to_merge = []
 
         # handle all non-static protocols #

@@ -7,7 +7,8 @@ from subprocess import Popen, PIPE
 
 # TODO change to something aesthetic 
 BIRD_PATH = os.path.abspath(os.path.join(__file__ ,"../../../../../../../bird"))  # trex scripts folder 
-CTL_PATH = "%s/bird.ctl" % BIRD_PATH
+BIRD_TMP_PATH = "/tmp/trex/bird"
+CTL_PATH = "%s/bird.ctl" % BIRD_TMP_PATH  
 CONF_PATH = "%s/bird.conf" % BIRD_PATH 
 DEFAULT_CFG = """
 router id 100.100.100.100;
@@ -27,6 +28,8 @@ class PyBird(object):
         """Basic pybird setup."""
         if not os.path.exists(config_file):
            raise Exception('Config file not found: %s' % config_file)
+        if not os.path.exists(BIRD_TMP_PATH):
+            os.makedirs(BIRD_TMP_PATH)
         self.socket_file    = socket_file
         self.socket         = None
         self.hostname       = hostname

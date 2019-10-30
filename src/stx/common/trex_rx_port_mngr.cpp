@@ -486,8 +486,18 @@ std::string wait_stack_tasks(CStackBase *stack, double timeout_sec) {
         return ex.what();
     }
     if ( results.err_per_mac.size() ) {
-        assert(results.err_per_mac.size()==1);
-        return results.err_per_mac.begin()->second;
+        if ( results.err_per_mac.size() == 1 ) {
+            return results.err_per_mac.begin()->second;
+        } else {
+            stringstream ss;
+            ss << "Got multiple errors: " << std::endl;
+            for (auto &error : results.err_per_mac ) {
+                ss << "* " <<  error.second << endl;
+            }
+            string msg = ss.str();
+            std::cout << msg << std::endl;
+            return msg;
+        }
     }
     return "";
 }
