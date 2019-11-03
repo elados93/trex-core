@@ -132,12 +132,13 @@ string CStackLinuxBased::m_mtu = "";
 string CStackLinuxBased::m_ns_prefix = "";
 string CStackLinuxBased::m_bird_ns = "";
 
-CStackLinuxBased::CStackLinuxBased(RXFeatureAPI *api, CRXCoreIgnoreStat *ignore_stats) : CStackBase(api, ignore_stats) {
+CStackLinuxBased::CStackLinuxBased(RXFeatureAPI *api, CRXCoreIgnoreStat *ignore_stats) : CStackBase(api, ignore_stats), m_shared_ns_prefix("trex-shared-ns-") {
     if ( !m_is_initialized ) {
         verify_programs();
         char prefix_char = clean_old_nets_and_get_prefix();
         m_ns_prefix = string("trex-") + prefix_char + "-";
         debug("Using netns prefix " + m_ns_prefix);
+        // m_shared_ns_prefix = string("trex-shared-ns-");
         m_mtu = to_string(MAX_PKT_ALIGN_BUF_9K);
         if ( CGlobalInfo::m_options.m_is_bird_enabled ) {
             init_bird();
@@ -152,6 +153,7 @@ CStackLinuxBased::CStackLinuxBased(RXFeatureAPI *api, CRXCoreIgnoreStat *ignore_
     get_platform_api().getPortAttrObj(api->get_port_id())->set_multicast(true); // We need multicast for IPv6
     m_next_namespace_id = 0;
     m_next_bird_if_id = 0;
+    m_next_shared_ns_id = 0;
     m_next_shared_ns_if_id = 0;
 }
 
@@ -163,6 +165,7 @@ CStackLinuxBased::~CStackLinuxBased() {
         kill_bird_ns();
         m_is_initialized = false;
     }
+    rpc_remove_all(); // ensure all shared namespaces are deleted
 }
 
 void CStackLinuxBased::handle_pkt(const rte_mbuf_t *m) {
@@ -235,6 +238,22 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_add_node(const std::string & mac) {
     try {
         CNamespacedIfNode *node = (CNamespacedIfNode *)add_node_internal(mac_str_to_mac_buf(mac));
         node->set_associated_trex(false); /* from RPC we need to mark them as namespace ! */
+    } catch (const TrexException &ex) {
+        throw TrexRpcException(ex.what());
+    }
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e CStackLinuxBased::rpc_add_shared_ns(Json::Value &result) {
+    /* this is RPC command */
+    try {
+        stringstream ss;
+        ss << m_shared_ns_prefix << hex << (int)m_api->get_port_id() << "-" << hex << (int)m_next_shared_ns_id;
+        string ns_name = ss.str();
+        popen_with_err("ip netns add " + ns_name, "cannot create namespace: " + ns_name);
+        m_next_shared_ns_id++;
+        m_shared_ns_names.insert(ns_name);
+        result = ns_name;
     } catch (const TrexException &ex) {
         throw TrexRpcException(ex.what());
     }
@@ -410,6 +429,7 @@ uint16_t CStackLinuxBased::handle_tx(uint16_t limit) {
     string read_buf_str;
     struct epoll_event events[MAX_EVENTS];
     int event_count = epoll_wait(m_epoll_fd, events, MAX_EVENTS, 0);
+
     if ( event_count ) {
         int i;
         for (i=0; i<event_count; i++) {
@@ -456,6 +476,10 @@ uint16_t CStackLinuxBased::handle_tx(uint16_t limit) {
             }
             lock.unlock();
         }
+    } else {
+        if ( event_count < 0) {
+            std::cout << "** Got ERROR! Number: " << event_count << std::endl;
+        }
     }
     return event_count;
 }
@@ -477,7 +501,6 @@ CNodeBase* CStackLinuxBased::add_shared_ns_node_internal(const string &mac_buf,
         node = new CSharedNSIfNode(m_bird_ns, ss.str(), mac_str, mac_buf, m_mtu, m_mcast_filter, true);
         m_next_bird_if_id++;
     } else {
-        // shared namespace node
         ss << "ns-" << hex << (int)m_api->get_port_id() << "-" << hex << (int)m_next_shared_ns_if_id;
         node = new CSharedNSIfNode(shared_ns, ss.str(), mac_str, mac_buf, m_mtu, m_mcast_filter, false);
         m_next_shared_ns_if_id++;
@@ -572,9 +595,13 @@ void CStackLinuxBased::del_node_internal(const string &mac_buf) {
 }
 
 void CStackLinuxBased::del_shared_ns_internal(const string &shared_ns) {
-    string cmd = "ip netns del " + shared_ns;
-    // TODO: delete all nodes? 
-    popen_with_err(cmd, "cannot remove shared ns node with name space " + shared_ns);
+    if ( shared_ns.find(m_shared_ns_prefix) == 0 ) {
+        string cmd = "ip netns del " + shared_ns;
+        popen_with_err(cmd, "cannot remove shared ns node with name space " + shared_ns);
+        m_shared_ns_names.erase(shared_ns);
+    } else {
+        throw TrexException("namespace '" + shared_ns + "' wasn't created by TRex!");
+    }
 }
 
 #define MAX_REMOVES_UNDER_LOCK 20
@@ -615,6 +642,11 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_remove_all(){
         }
         m_vec.clear();
     }
+
+    for (auto &ns_name : m_shared_ns_names) {
+        popen_with_err("ip netns del " + ns_name, "cannot remove shared ns node with name space " + ns_name);
+    }
+    m_shared_ns_names.clear();
 
     if (error) {
         throw TrexRpcException(last_ex);
@@ -698,7 +730,7 @@ CNamespacedIfNode::~CNamespacedIfNode() {}
 void CNamespacedIfNode::to_json_node(Json::Value &res) {
     CNodeBase::to_json_node(res);
     res["linux-ns"] = m_ns_name;
-    res["shared-ns"] = m_shared_ns;
+    res["is-shared-ns"] = m_is_shared_ns;
     res["linux-veth-internal"] = m_if_name+"-L";
     res["linux-veth-external"] = m_if_name+"-T";
 }
@@ -792,6 +824,7 @@ uint16_t get_tpid(const vlan_list_t &tpids, uint8_t index, uint16_t def) {
 void CNamespacedIfNode::conf_vlan_internal(const vlan_list_t &vlans, const vlan_list_t &tpids) {
     string bpf_str = "";
     m_vlans_insert_to_pkt = "";
+    auto default_bpf = string(get_default_bpf());
 
     uint16_t tpid;
     for (auto &vlan : vlans) {
@@ -803,15 +836,14 @@ void CNamespacedIfNode::conf_vlan_internal(const vlan_list_t &vlans, const vlan_
             append_to_str(tpid, m_vlans_insert_to_pkt);
         }
         append_to_str(vlan, m_vlans_insert_to_pkt);
-        bpf_str += "vlan " + to_string(vlan) + " and ";
+        if ( vlan == *vlans.end() &&  default_bpf.empty() ) {
+            bpf_str += "vlan " + to_string(vlan);
+        } else {
+            bpf_str += "vlan " + to_string(vlan) + " and ";
+        }
     }
-    auto default_bpf = string(get_default_bpf());
-    if ( !default_bpf.empty() ) {
-        bpf_str += get_default_bpf();
-    } else {
-        size_t lastindex = bpf_str.find_last_of(" and ") - 5; 
-        bpf_str = bpf_str.substr(0, lastindex);  // removing last " and "
-    }
+
+    bpf_str += default_bpf;
     m_bpf = bpfjit_compile(bpf_str.c_str());
     m_mcast_filter->add_del_vlans(vlans.size(), m_vlan_tags.size());
     m_vlan_tags = vlans;
@@ -935,7 +967,7 @@ CLinuxIfNode::CLinuxIfNode(const string &ns_name, const string &mac_str, const s
     m_ns_name = ns_name;
     m_if_name = ns_name;
     m_associated_trex_ports = true;
-    m_shared_ns = false;
+    m_is_shared_ns = false;
     create_ns();
     create_veths(mtu);
     set_src_mac(mac_str, mac_buf);
@@ -970,7 +1002,7 @@ CSharedNSIfNode::CSharedNSIfNode(const string &ns_name, const string &if_name, c
     m_ns_name = ns_name;
     m_if_name = if_name;
     m_is_bird = is_bird;
-    m_shared_ns = true;
+    m_is_shared_ns = true;
     debug("Initializing Shared namespace veth");
     m_associated_trex_ports = true;
     create_veths(mtu);

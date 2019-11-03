@@ -56,6 +56,11 @@ trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_add_node(const Json::Value &params, 
     }
 }
 
+trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_add_shared_ns(const Json::Value &params, Json::Value &result){
+    debug({"rpc_add_shared_ns",pretty_json_str(params)});
+    return (m_obj->rpc_add_shared_ns(result));
+}
+
 trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_remove_node(const Json::Value &params, Json::Value &result){
     debug({"rpc_remove_node",pretty_json_str(params)});
     string mac   = parse_string(params, "mac", result);
@@ -227,6 +232,7 @@ void CRpcTunnelCStackBase::register_rpc_functions(){
     using namespace std::placeholders;
 
     register_func("add_node",std::bind(&CRpcTunnelCStackBase::rpc_add_node, this, _1, _2));
+    register_func("add_shared_ns",std::bind(&CRpcTunnelCStackBase::rpc_add_shared_ns, this, _1, _2));
     register_func("remove_node",std::bind(&CRpcTunnelCStackBase::rpc_remove_node, this, _1, _2));
     register_func("remove_shared_ns",std::bind(&CRpcTunnelCStackBase::rpc_remove_shared_ns, this, _1, _2));
     register_func("set_vlans",std::bind(&CRpcTunnelCStackBase::rpc_set_vlans, this, _1, _2));

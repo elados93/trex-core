@@ -1644,6 +1644,83 @@ Beacuse it is a very slow operation the API is a bit different than what we have
 
 full API could be found link:cp_stl_docs/api/namespace.html[namespace API]
 
+===== Types of nodes
+
+All nodes are identified by a unique MAC address, however there are some differences. We support 3 types of nodes: *Normal, Shared Namespace and Bird nodes*. 
+
+====== Normal Node
+
+These are the default type of nodes, creating a namespace and a veth pair. These nodes are configured by ipv4 and a default gateway.
+
+.Example of usage
+[source,python]
+----
+cmds = NSCmds()
+MAC = "00:01:02:03:04:05"
+cmds.add_node(MAC)                                                              <1>
+c.set_namespace(0, method='set_ipv4', mac=MAC, ipv4="1.1.1.3", dg="1.1.1.2")    <2>
+...
+----
+<1> defualt node is normal node, specifying only mac address
+<2> configuring ipv4 with ip address and a default gateway
+
+More examples can be found link:trex_stateless.html#_add_one_node_using_batch_api[here]
+
+====== Shared Namespace Node
+
+These are nodes with pre-created namespace, they only creating the veth pair on the existing namespace. That way you can create multiple veths for namespace. These nodes are configured by ipv4 and a subnet mask.
+
+.Example of usage
+[source,python]
+----
+cmds = NSCmds()
+cmds.add_node(mac = "00:01:02:03:04:05", shared_ns = "my-ns")       <1>
+cmds.add_node(mac = "00:01:02:03:04:06", shared_ns = "my-ns")       <2>
+c.set_namespace(0, method='set_ipv4', mac="00:01:02:03:04:05",
+                                        ipv4 = "1.1.1.3",
+                                        subnet = 24,
+                                        shared_ns = True)           <3>
+
+c.set_namespace(0, method='set_ipv4', mac="00:01:02:03:04:06",
+                                        ipv4 = "1.1.2.3",
+                                        subnet = 24,
+                                        shared_ns = True)
+...
+----
+<1> "my-ns" is the name of the pre-created namespace
+<2> creating a second veth pair in the same namespace
+<3> must specify shared_ns parameter
+
+====== Bird Node
+ 
+Bird node is a specific case of shared namespace node. Bird namespace is created once running TRex with "--bird-server" flag, in that way they are similar to shared namespace. To learn more on the usage of bird with TRex see: link:trex_stateless.html#_bird_intgration_beta[Bird Integration].
+
+NOTE: You cannot set is_bird = True and shared_ns = "my-ns", they are mutual exclusive arguments.
+
+Examples with bird nodes can be found link:trex_stateless.html#_tutorial_simple_bird_node_adding[here].
+
+====== Summary of node types differences
+
+.Types of nodes differences
+|===
+|Node Type | Node : veth ratio | Namespace creation | Set ipv4  
+
+|Normal
+|1 : 1
+|Created on each node
+|Ip address and default gateway
+
+|Shared Namespace
+|1 : Many
+|Pre-created, name determined by user
+|Ip address and a subnet mask
+
+|Bird
+|1 : Many
+|Pre-created, name determined by TRex
+|Ip address and a subnet mask
+|===
+
 ===== Add one node using batch API
 
 In this example, one node with MAC:  "00:01:02:03:04:05" and ipv4="1.1.1.3" default_gateway ="1.1.1.2" and IPv6 enabled will be added. 
@@ -1657,24 +1734,24 @@ to verify the response need to call `wait_for_async_results` API
     c.connect()
 
     my_ports=[0,1]
-    c.reset(ports = my_ports)           <1>
+    c.reset(ports = my_ports)                                                           <1>
 
     # move to service mode 
-    c.set_service_mode (ports = my_ports, enabled = True) <2>
+    c.set_service_mode (ports = my_ports, enabled = True)                               <2>
 
 
-    cmds=NSCmds()                             <3>
+    cmds=NSCmds()                                                                       <3>
     MAC="00:01:02:03:04:05"                   
-    cmds.add_node(MAC)  # add namespace       <4>
+    cmds.add_node(MAC)  # add namespace                                                 <4>
     cmds.set_vlan(MAC,[123,123]) # add valn + QinQ tags 
-    cmds.set_ipv4(MAC,"1.1.1.3","1.1.1.2") # configure ipv4 and default gateway   <5>
-    cmds.set_ipv6(MAC,True) # enable ipv6 (auto mode, get src addrees from the router <6> 
+    cmds.set_ipv4(MAC,"1.1.1.3","1.1.1.2") # configure ipv4 and default gateway         <5>
+    cmds.set_ipv6(MAC,True) # enable ipv6 (auto mode, get src addrees from the router   <6> 
 
 
      # start the batch 
-    c.set_namespace_start( 0, cmds)     <7>
+    c.set_namespace_start( 0, cmds)                                                     <7>
     # wait for the results     
-    res = c.wait_for_async_results(0)  <8>
+    res = c.wait_for_async_results(0)                                                   <8>
 
     # print the results    
     print(res);
@@ -5435,7 +5512,7 @@ Enter configuration commands, one per line.  End with CNTL/Z.
 asr1001-01(config)#router bgp 65000
 asr1001-01(config-router)#neighbor 1.1.1.3 remote-as 65000
 asr1001-01(config-router)#neighbor 1.1.2.3 remote-as 65000
-asr1001-01(config-router)#end 
+asr1001-01(config-router)#end
 ----
 
 - Run TRex in "ONE_QUEUE" mode and set bird flag on :
@@ -5457,10 +5534,9 @@ c = STLClient(verbose_level = 'debug')
 my_ports = [0, 1]
 c.connect()
 c.acquire(ports = my_ports)
-c.set_port_attr(promiscuous=True) # to get the packet back to namespace
-c.set_service_mode(ports = my_ports, enabled = True)  # this is needed for software mode with one QUEUE, going to be replaced with multi-Rx 
+c.set_service_mode(ports = my_ports, enabled = True)                <1>
 
-bird_cfg = BirdCFGCreator()
+bird_cfg = BirdCFGCreator()                                         <2>
 bgp_data1 = """
     local 1.1.1.3 as 65000;
     neighbor 1.1.1.1 as 65000;
@@ -5483,26 +5559,39 @@ bird_cfg.add_protocol(protocol = "bgp", name = "my_bgp2", data = bgp_data2)
 bird_cfg.add_route(dst_cidr = "42.42.42.42/32", next_hop = "1.1.1.3")
 bird_cfg.add_route(dst_cidr = "42.42.42.43/32", next_hop = "1.1.2.3")
 cfg = bird_cfg.build_config() # build combined configuration 
-c.set_bird_config(config = cfg)  # sending our new config (under the hood there is a PyBird client)
 
-# create 2 veth's in bird namespace, need to move to prom mode to get. You can use the old TRex namespace API this is just a shim to layer t
-c.set_bird_node(node_port      = 0,
+pybird_c = PyBirdClient(ip = 'localhost', port = 4509)
+pybird_c.connect()
+pybird_c.acquire()
+pybird_c.set_config(new_cfg = cfg)                                  <3>
+
+c.set_bird_node(node_port      = 0,                                 <4>
                 mac            = "00:00:00:01:00:07",
                 ipv4           = "1.1.1.3",
-                ipv6_enabled   = True,
                 ipv4_subnet    = 24,
-                ipv6_subnet    = 124)
+                ipv6_enabled   = True,
+                ipv6_subnet    = 124,
+                vlans          = [22],
+                tpid           = [0x8100])
 
 c.set_bird_node(node_port      = 1,
                 mac            = "00:00:00:01:00:08",
                 ipv4           = "1.1.2.3",
-                ipv6_enabled   = True,
                 ipv4_subnet    = 24,
+                ipv6_enabled   = True,
                 ipv6_subnet    = 124)
 
-c.wait_for_protocols(['my_bgp1, my_bgp2'])
+pybird_c.check_protocols_up(['my_bgp1, my_bgp2'])                   <5>
+pybird_c.release()                                                  <6>
+pybird_c.disconnect()
 c.disconnect()
 ----
+<1> this is needed for software mode with one QUEUE, going to be replaced with multi-Rx 
+<2> using BirdCFGCreator in order to make bird configuration
+<3> sending our new config
+<4> create 2 veth's in bird namespace
+<5> ensure bird works on our protocols
+<6> exiting gracefully PyBirdClient
 
 The python script will create the 2 veth's and send bird a simple config file with bgp protocol and 2 static routes. You can check if it worked on the dut side - look for the two new bgp routes:
 

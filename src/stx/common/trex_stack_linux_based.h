@@ -28,6 +28,7 @@
 #include "bpf_api.h"
 #include <rte_spinlock.h>
 #include <sys/epoll.h>
+#include <unordered_set>
 
 using namespace std;
 
@@ -88,7 +89,7 @@ protected:
     virtual const char *get_default_bpf() = 0;
 
     bool            m_associated_trex_ports; /* associated with TRex physical port*/
-    bool            m_shared_ns;
+    bool            m_is_shared_ns;
     int             m_pair_id;
     string          m_ns_name;
     string          m_if_name;
@@ -147,6 +148,7 @@ public:
     virtual void rpc_help(const std::string & mac,const std::string & p1,const std::string & p2);
 
     virtual trex_rpc_cmd_rc_e rpc_add_node(const std::string & mac);
+    virtual trex_rpc_cmd_rc_e rpc_add_shared_ns(Json::Value &result);
     virtual trex_rpc_cmd_rc_e rpc_add_shared_ns_node(const std::string & mac, bool is_bird, const string &shared_ns);
     virtual trex_rpc_cmd_rc_e rpc_remove_node(const std::string & mac);
     virtual trex_rpc_cmd_rc_e rpc_remove_shared_ns(const std::string & shared_ns);
@@ -182,18 +184,20 @@ private:
     void kill_bird_ns();
     const string get_bird_path();
 
-
-    int                 m_epoll_fd;
-    static string       m_mtu;
-    static string       m_ns_prefix;
-    static bool         m_is_initialized;
-    uint64_t            m_next_namespace_id;
-    uint64_t            m_next_bird_if_id;
-    uint64_t            m_next_shared_ns_if_id;
-    string              m_bird_path;
-    char                m_rw_buf[MAX_PKT_ALIGN_BUF_9K];
-    rte_spinlock_t      m_main_loop; /* protect main loop in case of add/remove ns*/
-    CMcastFilter        m_mcast_filter;
+    int                     m_epoll_fd;
+    static string           m_mtu;
+    static string           m_ns_prefix;
+    const string            m_shared_ns_prefix;
+    static bool             m_is_initialized;
+    uint64_t                m_next_namespace_id;
+    uint64_t                m_next_bird_if_id;
+    uint64_t                m_next_shared_ns_id; 
+    uint64_t                m_next_shared_ns_if_id;
+    unordered_set <string>  m_shared_ns_names;
+    string                  m_bird_path;
+    char                    m_rw_buf[MAX_PKT_ALIGN_BUF_9K];
+    rte_spinlock_t          m_main_loop; /* protect main loop in case of add/remove ns*/
+    CMcastFilter            m_mcast_filter;
 };
 
 

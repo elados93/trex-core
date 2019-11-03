@@ -28,6 +28,9 @@ c.connect()
 c.acquire(ports = my_ports)
 c.set_service_mode(ports = my_ports, enabled = True)
 
+pybird_c = PyBirdClient(ip='localhost', port=4509)
+pybird_c.connect()
+pybird_c.acquire()
 
 # c.set_namespace(0, method='add_node', mac="00:00:00:01:00:07", shared_ns = "ns")
 # c.set_namespace(0, method='set_ipv4', mac="00:00:00:01:00:07", 
@@ -61,8 +64,7 @@ bird_cfg.add_protocol(protocol = "bgp", name = "my_bgp1", data = bgp_data1)
 bird_cfg.add_protocol(protocol = "bgp", name = "my_bgp2", data = bgp_data2)
 bird_cfg.add_route(dst_cidr = "42.42.42.42/32", next_hop = "1.1.1.3")
 bird_cfg.add_route(dst_cidr = "42.42.42.43/32", next_hop = "1.1.2.3")
-cfg = bird_cfg.build_config()
-c.set_bird_config(config = cfg)  # sending our new config
+pybird_c.set_config(new_cfg = bird_cfg.build_config())  # sending our new config
 
 # create 2 veth's in bird namespace
 c.set_bird_node(node_port      = 0,
@@ -81,7 +83,9 @@ c.set_bird_node(node_port      = 1,
                 ipv6_enabled   = True,
                 ipv6_subnet    = 124)
 
-c.wait_for_protocols(['my_bgp1, my_bgp2'])
+pybird_c.check_protocols_up(['my_bgp1, my_bgp2'])
 c.set_namespace(0, method='get_nodes_info', macs_list=["00:00:00:01:00:07"])
 c.set_namespace(1, method='get_nodes_info', macs_list=["00:00:00:01:00:08"])
+pybird_c.release()
+pybird_c.disconnect()
 c.disconnect()

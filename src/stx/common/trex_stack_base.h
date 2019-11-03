@@ -127,6 +127,7 @@ public:
     void init(CStackBase * obj);
 
     trex_rpc_cmd_rc_e rpc_add_node(const Json::Value &params, Json::Value &result);
+    trex_rpc_cmd_rc_e rpc_add_shared_ns(const Json::Value &params, Json::Value &result);
     trex_rpc_cmd_rc_e rpc_remove_node(const Json::Value &params, Json::Value &result);
     trex_rpc_cmd_rc_e rpc_remove_shared_ns(const Json::Value &params, Json::Value &result);
     trex_rpc_cmd_rc_e rpc_set_vlans(const Json::Value &params, Json::Value &result);
@@ -243,7 +244,7 @@ public:
         return(TREX_RPC_CMD_INTERNAL_ERR);
     }
 
-    virtual trex_rpc_cmd_rc_e rpc_add_bird_node(const std::string & mac){
+    virtual trex_rpc_cmd_rc_e rpc_add_shared_ns(Json::Value &result){
         throw_not_supported();
         return(TREX_RPC_CMD_INTERNAL_ERR);
     }

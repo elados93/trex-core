@@ -19,11 +19,11 @@ class PyBirdClient():
 
     CLIENT_VERSION = "1.0"  # need to sync with bird zmq sever
 
-    def __init__(self,dest_bird_port=4509,server_ip_address='localhost'):
-        self.server_ip_address = server_ip_address
+    def __init__(self, ip='localhost', port=4509):
+        self.ip = ip
         self.socket = None
         self.context = None
-        self.dest_bird_port = dest_bird_port
+        self.port = port
         self.handler = None  # represent non connected client
         self.is_connected = False 
 
@@ -77,7 +77,7 @@ class PyBirdClient():
         if not self.is_connected:
             self.context = zmq.Context()
             self.socket = self.context.socket(zmq.REQ)
-            self.socket.connect("tcp://"+str(self.server_ip_address)+":"+str(self.dest_bird_port))
+            self.socket.connect("tcp://"+str(self.ip)+":"+str(self.port))
             result = self._call_method('connect', [PyBirdClient.CLIENT_VERSION])
             if result:
                 self.is_connected = True
@@ -106,6 +106,30 @@ class PyBirdClient():
         return self._call_method('get_protocols_info', [])
 
     def check_protocols_up(self, protocols_list, timeout=60, poll_rate=1):
+        """
+            waiting for all the bird protocols in 'protocols' list. In case bird protocols are still
+            down after 'timeout' seconds, an exception will be raised. 
+
+            usage example::
+
+                wait_for_protocols(['bgp1', 'rip1', 'rip2'])
+            
+
+            :parameters:
+
+                protocols: list 
+                    list of all protocols names the new bird node will be followed by.
+                    notice the names should be exactly as they appear in bird configuration.
+
+                timeout: int
+                    total time waiting for bird protocols.
+
+                poll_rate: int
+                    polling rate for bird protocols check.
+            
+            :raises:
+                + :exc:`TRexError` in case of any error 
+        """ 
         protocols_list = [p.lower() for p in protocols_list]
         for _ in range(int(timeout / poll_rate)):
             down_protocols = []
@@ -207,15 +231,15 @@ def send_many_routes(b, total_routes):
 
 if __name__=='__main__':
     parser = ArgumentParser(description='Example of client module for Bird server ')
-    parser.add_argument('-p','--dest-bird-port',type=int, default = 4509, dest='dest_bird_port',
+    parser.add_argument('-p','--dest-bird-port',type=int, default = 4509, dest='port',
                         help='Select port to which this Bird Server client will send to.\n default is 4509\n',action='store')
-    parser.add_argument('-s','--server',type=str, default = 'localhost', dest='dest_bird_ip',
+    parser.add_argument('-s','--server',type=str, default = 'localhost', dest='ip',
                         help='Remote server IP address .\n default is localhost\n',action='store')
     parser.add_argument('-c','--console',
                         help='Run simple client console for Bird server.\nrun with \'-s\' and \'-p\' to determine IP and port of the server\n',
                         action='store_true',default = False)
     args = parser.parse_args()
-    b = PyBirdClient(args.dest_bird_port,args.dest_bird_ip)
+    b = PyBirdClient(args.ip, args.port)
 
     # try:
     print("connect: \n%s" % b.connect())
@@ -229,6 +253,3 @@ if __name__=='__main__':
     print('-' * 50)
     print("release: %s" % b.release() )
     print("disconnect: %s" % b.disconnect() )
-    
-    # except Exception as e:
-    #     print(str(e))

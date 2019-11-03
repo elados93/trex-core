@@ -48,7 +48,7 @@ class NSCmds(object):
 
     # add commands
     def add_node(self,mac, is_bird = False, shared_ns = None):
-        ''' add new virtual interface and it's namespace
+        ''' add new virtual interface and it's namespace, in shared_ns and bird cases only virtual interface will be created
 
             :parameters:
 
@@ -56,10 +56,10 @@ class NSCmds(object):
                 MAC address in the format of xx:xx:xx:xx:xx:xx
 
             is_bird: bool
-                True if the new node will be a bird node. Notice it's mutually exclusive with shared_ns.
+                True if the new node will be a bird node. Notice it's mutually exclusive with shared_ns
 
             shared_ns: string
-                The name of the shared namespace to paired with. Notice it's mutually exclusive with is_bird.
+                The name of the shared namespace to paired with. Notice it's mutually exclusive with is_bird
         '''
 
         ver_args = {"types":
@@ -76,7 +76,14 @@ class NSCmds(object):
             raise TRexError("Cannot add node with bird option and shared namespace!")
 
         self.add_cmd ('add_node', **args)
-        
+
+    def add_shared_ns(self):
+        '''
+        simply adding new namespace to TRex with no veth.
+        return the name of the new namespace.
+        '''
+        self.add_cmd ('add_shared_ns')
+
     def remove_node (self,mac):
         ''' remove namespace 
 
@@ -95,6 +102,15 @@ class NSCmds(object):
         self.add_cmd ('remove_node',mac=mac)
 
     def remove_shared_ns(self, shared_ns):
+        '''
+        remove shared namespace.
+
+        parameters:
+
+            shared_ns: string
+                The name of the namespace to delete
+
+        '''
         ver_args = {"types":
                     [{"name": "shared_ns", 'arg': shared_ns, "t": str}]
                    }
@@ -102,6 +118,17 @@ class NSCmds(object):
         self.add_cmd ('remove_shared_ns', shared_ns = shared_ns)
 
     def set_dg(self, shared_ns, dg):
+        '''
+        set or change default gateway for the whole namespace. works only on shared_ns nodes.
+
+        parameters:
+
+            shared_ns: string
+                The name of the pre-created namespace
+
+            dg: string
+                The new default gateway to set
+        '''
         ver_args = {"types":
                     [{"name": "shared_ns", 'arg': shared_ns, "t": str},
                     {"name": "dg", 'arg': dg, "t": "ip address"}]
@@ -191,7 +218,7 @@ class NSCmds(object):
                 Key to the already created namespace in format xx:xx:xx:xx:xx:xx
 
             bpf_filter: string
-                valid bfp filter
+                Valid bfp filter
         '''
         ver_args = {"types":
                     [{"name": "mac", 'arg': mac, "t": "mac"},
