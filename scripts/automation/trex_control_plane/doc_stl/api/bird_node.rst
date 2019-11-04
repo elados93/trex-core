@@ -111,8 +111,8 @@ build a x bird nodes ::
             return cmds
 
 
-NSCmds class
-------------
+From NSCmds class
+-----------------
 
 .. autoclass:: trex.common.trex_client.TRexClient
     :members: set_bird_node

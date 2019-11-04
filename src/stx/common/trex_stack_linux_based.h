@@ -179,6 +179,7 @@ private:
     void del_shared_ns_internal(const std::string &shared_ns);
     CNamespacedIfNode * get_node_by_mac(const std::string &mac);
     CNamespacedIfNode * get_node_rpc(const std::string &mac);
+    void remove_all_internal();
     void create_bird_ns();
     void run_bird_in_ns();
     void kill_bird_ns();
@@ -187,7 +188,7 @@ private:
     int                     m_epoll_fd;
     static string           m_mtu;
     static string           m_ns_prefix;
-    const string            m_shared_ns_prefix;
+    string                  m_shared_ns_prefix;
     static bool             m_is_initialized;
     uint64_t                m_next_namespace_id;
     uint64_t                m_next_bird_if_id;

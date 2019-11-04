@@ -132,13 +132,13 @@ string CStackLinuxBased::m_mtu = "";
 string CStackLinuxBased::m_ns_prefix = "";
 string CStackLinuxBased::m_bird_ns = "";
 
-CStackLinuxBased::CStackLinuxBased(RXFeatureAPI *api, CRXCoreIgnoreStat *ignore_stats) : CStackBase(api, ignore_stats), m_shared_ns_prefix("trex-shared-ns-") {
+CStackLinuxBased::CStackLinuxBased(RXFeatureAPI *api, CRXCoreIgnoreStat *ignore_stats) : CStackBase(api, ignore_stats) {
     if ( !m_is_initialized ) {
         verify_programs();
         char prefix_char = clean_old_nets_and_get_prefix();
         m_ns_prefix = string("trex-") + prefix_char + "-";
+        m_shared_ns_prefix = string("trex-shared-ns");
         debug("Using netns prefix " + m_ns_prefix);
-        // m_shared_ns_prefix = string("trex-shared-ns-");
         m_mtu = to_string(MAX_PKT_ALIGN_BUF_9K);
         if ( CGlobalInfo::m_options.m_is_bird_enabled ) {
             init_bird();
@@ -292,8 +292,12 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_remove_shared_ns(const std::string & sha
 }
 
 trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_filter(const std::string &mac, const std::string &filter) {
-    CNamespacedIfNode * lp = get_node_rpc(mac);
-    lp->set_filter(filter);
+    try {
+        CNamespacedIfNode * lp = get_node_rpc(mac);
+        lp->set_filter(filter);
+    } catch (const TrexException &ex) {
+        throw TrexRpcException(ex.what());
+    }
     return (TREX_RPC_CMD_OK);
 }
 
@@ -301,11 +305,6 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_dg(const std::string &shared_ns, con
     try {
         string op = is_dg_set_in_ns(shared_ns) ? "change" : "add";   
         run_in_ns("ip -4 route " + op + " default via " + dg, "Could not set default IPv4 gateway for veth", shared_ns);
-
-        // char buf[INET_ADDRSTRLEN];
-        // inet_ntop(AF_INET, dg.c_str(), buf, INET_ADDRSTRLEN);
-        // string gw4_str(buf);
-        // run_in_ns("ip -4 route add default via " + gw4_str, "Could not set default IPv4 gateway for veth", shared_ns);
     } catch (const TrexException &ex) {
         throw TrexRpcException(ex.what());
     }
@@ -315,19 +314,21 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_dg(const std::string &shared_ns, con
 trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_vlans(const std::string & mac,
                                                   const vlan_list_t &vlan_list,
                                                   const vlan_list_t &tpid_list) {
-    CNamespacedIfNode * lp=get_node_rpc(mac);
-
-    CSpinLock lock(&m_main_loop);
-    lp->conf_vlan_internal(vlan_list, tpid_list);
-
+    try {
+        CNamespacedIfNode * lp=get_node_rpc(mac);
+        CSpinLock lock(&m_main_loop);
+        lp->conf_vlan_internal(vlan_list, tpid_list);
+    } catch (const TrexException &ex) {
+        throw TrexRpcException(ex.what());
+    }
     return (TREX_RPC_CMD_OK);
 }
 
 trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_ipv4(const std::string &mac,
                                                  std::string ip4_buf,
                                                  std::string gw4_buf) {
-    CNamespacedIfNode * lp = get_node_rpc(mac);
     try {
+        CNamespacedIfNode * lp = get_node_rpc(mac);
         lp->conf_ip4_internal(ip4_buf, gw4_buf);
     } catch (const TrexException &ex) {
         throw TrexRpcException(ex.what());
@@ -338,8 +339,8 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_ipv4(const std::string &mac,
 trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_shared_ns_ipv4(const std::string &mac,
                                                       const std::string &ip4_buf,
                                                       uint8_t subnet) {
-    CNamespacedIfNode * lp = get_node_rpc(mac);
     try {
+        CNamespacedIfNode * lp = get_node_rpc(mac);
         lp->conf_shared_ns_ip4_internal(ip4_buf, subnet);
     } catch (const TrexException &ex) {
         throw TrexRpcException(ex.what());
@@ -347,10 +348,9 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_shared_ns_ipv4(const std::string &ma
     return (TREX_RPC_CMD_OK);
 }
 
-
 trex_rpc_cmd_rc_e CStackLinuxBased::rpc_clear_ipv4(const std::string & mac){
-    CNamespacedIfNode * lp=get_node_rpc(mac);
     try {
+        CNamespacedIfNode * lp = get_node_rpc(mac);
        lp->clear_ip4_internal();
     } catch (const TrexException &ex) {
        throw TrexRpcException(ex.what());
@@ -361,8 +361,8 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_clear_ipv4(const std::string & mac){
 trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_ipv6(const std::string & mac,
                                                     bool enable,
                                                     std::string src_ipv6_buf){
-    CNamespacedIfNode * lp = get_node_rpc(mac);  
     try {
+        CNamespacedIfNode * lp = get_node_rpc(mac);  
         if (enable) {
             lp->conf_ip6_internal(true, src_ipv6_buf);
         } else {
@@ -375,9 +375,9 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_ipv6(const std::string & mac,
 }
 
 trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_shared_ns_ipv6(const std::string &mac,bool enable, std::string src_ipv6_buf, uint8_t subnet) {
-    CNamespacedIfNode * lp=get_node_rpc(mac);
     try {
-        if (enable) {
+        CNamespacedIfNode * lp=get_node_rpc(mac);
+        if ( enable ) {
             lp->conf_shared_ns_ip6_internal(true, src_ipv6_buf, subnet);
         } else {
             lp->clear_ip6_internal();
@@ -394,7 +394,6 @@ void CStackLinuxBased::create_bird_ns() {
 
 void CStackLinuxBased::run_bird_in_ns() {
     string bird_tmp_files = "/tmp/trex/bird";
-    popen_with_err("mkdir -p " + bird_tmp_files, "cannot create bird tmp files at: " + bird_tmp_files);
     stringstream cmd;
     cmd << " cd " << m_bird_path << "; ./trex_bird -c bird.conf -s " << bird_tmp_files << "/bird.ctl";
     run_in_ns(cmd.str(), "Error running bird process", m_bird_ns);
@@ -476,10 +475,6 @@ uint16_t CStackLinuxBased::handle_tx(uint16_t limit) {
             }
             lock.unlock();
         }
-    } else {
-        if ( event_count < 0) {
-            std::cout << "** Got ERROR! Number: " << event_count << std::endl;
-        }
     }
     return event_count;
 }
@@ -546,7 +541,6 @@ CNodeBase *CStackLinuxBased::add_linux_events_and_node(const string &mac_buf, co
     return node;
 }
 
-
 CNamespacedIfNode * CStackLinuxBased::get_node_rpc(const std::string &mac){
     CNamespacedIfNode * lp=get_node_by_mac(mac);
     if (!lp) {
@@ -595,7 +589,7 @@ void CStackLinuxBased::del_node_internal(const string &mac_buf) {
 }
 
 void CStackLinuxBased::del_shared_ns_internal(const string &shared_ns) {
-    if ( shared_ns.find(m_shared_ns_prefix) == 0 ) {
+    if ( m_shared_ns_names.find(shared_ns) != m_shared_ns_names.end() ) {
         string cmd = "ip netns del " + shared_ns;
         popen_with_err(cmd, "cannot remove shared ns node with name space " + shared_ns);
         m_shared_ns_names.erase(shared_ns);
@@ -607,7 +601,15 @@ void CStackLinuxBased::del_shared_ns_internal(const string &shared_ns) {
 #define MAX_REMOVES_UNDER_LOCK 20
 
 trex_rpc_cmd_rc_e CStackLinuxBased::rpc_remove_all(){
+    try {
+        remove_all_internal();
+    } catch (const TrexException &ex) {
+       throw TrexRpcException(ex.what());
+    }
+    return (TREX_RPC_CMD_OK);
+}
 
+void CStackLinuxBased::remove_all_internal(){
     std::vector<std::string> m_vec;
 
     std::string last_ex;
@@ -628,7 +630,7 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_remove_all(){
         }
         lock.unlock();
 
-        if (m_vec.size()==0) {
+        if (m_vec.size() == 0) {
             break;
         }
         /* try to remove them, might be removed by other command*/
@@ -637,7 +639,7 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_remove_all(){
               del_node_internal(mac_buf);
             } catch (const TrexException &ex) {
                 last_ex  = ex.what();
-                error =true;
+                error = true;
             }
         }
         m_vec.clear();
@@ -651,8 +653,6 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_remove_all(){
     if (error) {
         throw TrexRpcException(last_ex);
     }
-
-    return (TREX_RPC_CMD_OK);
 }
 
 trex_rpc_cmd_rc_e CStackLinuxBased::rpc_clear_counters(){
@@ -673,6 +673,7 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_counters_get_value(bool zeros, Json::Val
 
 trex_rpc_cmd_rc_e CStackLinuxBased::rpc_get_nodes_info(const Json::Value &params,
                                                        Json::Value &result){
+    try {
     result["nodes"]= Json::arrayValue;
 
     int i;
@@ -685,21 +686,27 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_get_nodes_info(const Json::Value &params
             result["nodes"].append(json_val);
         }
     }
+    } catch (const TrexException &ex) {
+       throw TrexRpcException(ex.what());
+    }
     return (TREX_RPC_CMD_OK);
 }
 
 
 trex_rpc_cmd_rc_e CStackLinuxBased::rpc_get_nodes(Json::Value &result){
-
-    result["nodes"]= Json::arrayValue;
-    /* no need for locks */
-    for (auto &iter_pair : m_nodes ) {
-        CNamespacedIfNode * lp=(CNamespacedIfNode*)iter_pair.second;
-        /* add the nodes that are not related to trex physical ports */
-        if (!lp->is_associated_trex()){
-            Json::Value json_val=lp->get_src_mac_as_str();
-            result["nodes"].append(json_val);
+    try {
+        result["nodes"]= Json::arrayValue;
+        /* no need for locks */
+        for (auto &iter_pair : m_nodes ) {
+            CNamespacedIfNode * lp=(CNamespacedIfNode*)iter_pair.second;
+            /* add the nodes that are not related to trex physical ports */
+            if (!lp->is_associated_trex()){
+                Json::Value json_val=lp->get_src_mac_as_str();
+                result["nodes"].append(json_val);
+            }
         }
+    } catch (const TrexException &ex) {
+       throw TrexRpcException(ex.what());
     }
 
    return (TREX_RPC_CMD_OK);
@@ -731,8 +738,9 @@ void CNamespacedIfNode::to_json_node(Json::Value &res) {
     CNodeBase::to_json_node(res);
     res["linux-ns"] = m_ns_name;
     res["is-shared-ns"] = m_is_shared_ns;
-    res["linux-veth-internal"] = m_if_name+"-L";
-    res["linux-veth-external"] = m_if_name+"-T";
+    res["linux-veth-internal"] = m_if_name + "-L";
+    res["linux-veth-external"] = m_if_name + "-T";
+    res["bpf"] = m_bpf;
 }
 
 uint16_t CNamespacedIfNode::filter_and_send(const string &pkt) {
@@ -774,7 +782,9 @@ void CNamespacedIfNode::delete_net() {
 }
 
 void CNamespacedIfNode::delete_veth() {
-    popen_with_err("ip link delete " + m_if_name + "-T", "Could not delete veth");
+    // do not raise exception when veth is already deleted 
+    string out;
+    popen_general("ip link delete " + m_if_name + "-T", "Could not delete veth", false, out);
 }
 
 void CNamespacedIfNode::delete_ns() {
@@ -836,14 +846,15 @@ void CNamespacedIfNode::conf_vlan_internal(const vlan_list_t &vlans, const vlan_
             append_to_str(tpid, m_vlans_insert_to_pkt);
         }
         append_to_str(vlan, m_vlans_insert_to_pkt);
-        if ( vlan == *vlans.end() &&  default_bpf.empty() ) {
-            bpf_str += "vlan " + to_string(vlan);
-        } else {
-            bpf_str += "vlan " + to_string(vlan) + " and ";
+        bpf_str += "vlan " + to_string(vlan);
+        if ( vlan != *vlans.end() ) {
+            bpf_str += " and ";
         }
     }
 
-    bpf_str += default_bpf;
+    if ( !default_bpf.empty() ) {
+        bpf_str += " and " + default_bpf;
+    }
     m_bpf = bpfjit_compile(bpf_str.c_str());
     m_mcast_filter->add_del_vlans(vlans.size(), m_vlan_tags.size());
     m_vlan_tags = vlans;

@@ -98,6 +98,20 @@ class CPlatform(object):
 
         self.cmd_link.run_single_command(cache)
 
+    def configure_bgp(self, as_num = 65000, neighbors = None):
+        assert(type(as_num) == int)
+        if neighbors is None:
+            neighbors = [{'ip': '1.1.1.3', 'as': 65000}, {'ip': '1.1.2.3', 'as': 65000}]
+        
+        cache = CCommandCache()
+        cache.add('CONF', 'router bgp %s ' % as_num)
+
+        for neighbor in neighbors:
+            cache.add('CONF', 'neighbor {ip} remote-as {as} '.format(**neighbor))
+        
+        self.cmd_link.run_single_command(cache)
+
+
 
     def load_clean_config (self, config_filename = "clean_config.cfg", cfg_drive = "bootflash"):
         for i in range(5):

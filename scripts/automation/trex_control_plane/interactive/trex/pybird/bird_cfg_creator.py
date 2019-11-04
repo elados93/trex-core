@@ -10,15 +10,20 @@ protocol device {
 """  
 
 class BirdCFGCreator:
-
+    '''
+        This class is used to create bird.conf file. Able to read a given config or using a default one, add/remove routes/routes protocols.
+        And finally create the wanted config file. 
+    '''
     # The name of the static protocol where the routes will beadded
     stat_name = "bird_cfg_routes"  
 
-    def __init__(self, cfg_string=DEFAULT_CFG):
-        ''' Construct BirdCFGCreator object for integrating routes and bird cfg
-        
-        Parameters:
-        cfg_string (string): The given BIRD cfg with all the protocols as string
+    def __init__(self, cfg_string = DEFAULT_CFG):
+        '''
+            Construct BirdCFGCreator object with a given cfg_string.
+            
+            :Parameters:
+                cfg_string: string
+                    The given bird.conf with all the protocols as string. In case cfg_string was not supply default cfg will be filled instead
         '''
         self.cfg = cfg_string
         self.routes = []              # i.e: route 0.0.0.0/0 via 198.51.100.130; 
@@ -30,7 +35,26 @@ class BirdCFGCreator:
                                       # i.e: {protocol: {name1: {from_conf: True, data: "some data"}}}
         self._init_protocols_dict()
 
-    def add_protocol(self, protocol, name, data, from_conf=False):
+    def add_protocol(self, protocol, name, data, from_conf = False):
+        '''
+            Add protocol to our future cfg. 
+            
+            :Parameters:
+                protocol: string
+                    The protocol we are about to add i.e: bgp, rip..
+                name: string
+                    The name of out protocol in bird i.e: bgp1, my_rip
+                    Must be unique in the cfg.
+                data: string
+                    The data inside the protocol as a string i.e:
+                    "ipv4 {
+                    import all;
+                    export all;}"
+                from_conf: bool
+                    Internal usage, True/False if that protocol was given by the self.cfg. Default is False
+            :raises:
+                + :exc:`Exception` - in case trying to add an existing protocol or static one with BirdCFGCreator name.
+        '''
         if protocol == 'static' and name == BirdCFGCreator.stat_name:
             raise Exception('Protocol %s named: "%s" is saved for BirdCFGCreator!' % (protocol, name))
         if protocol in self.protocols.keys():
@@ -42,6 +66,18 @@ class BirdCFGCreator:
             self.protocols[protocol] = {name: {'from_conf': from_conf, 'data': data}}
 
     def remove_protocol(self, protocol, name):
+        '''
+            Remove the protocol from our future cfg.
+            
+            :Parameters:
+                protocol: string
+                    The protocol to be removed i.e: bgp, rip. Not to be confused with the name as it in bird i.e bgp1, my_rip..
+                name: string 
+                    Protocol name (as it in bird) to be removed i.e: bgp1, my_rip. Not to be confused with the protocol itself like bgp, rip..
+            
+            :raises:
+                + :exc:`Exception` - in case protocol was not added before or it is part of the original bird.cfg.
+        '''
         if protocol in self.protocols.keys() and name in self.protocols[protocol]:
             if self.protocols[protocol][name][from_conf]:
                 raise Exception('cannot delete %s protocol named "%s", it is from conf file' % (protocol, name))
@@ -52,12 +88,39 @@ class BirdCFGCreator:
             raise Exception('There is no %s protocol named "%s"' % (protocol, name))
 
     def add_route(self, dst_cidr, next_hop):
+        """
+            Adding simple route to our future cfg. Simple route is any route where after "via" there are no brackets and there is only 1 term i.e: route 1.1.1.0/24 via "eth0"
+            
+            :Parameters:
+                dst_cidr: string
+                    Destination ip and subnetmask in cidr notation i.e: 1.1.1.0/24
+                next_hop: string
+                    Next hop to get the dst_cidr. 
+        """
         self.routes.append(Route(dst_cidr, next_hop))
     
     def add_extended_route(self, dst_cidr, next_hop):
+        """
+            Adding more complex route to our future cfg. Extended route is any route where after "via" there are more than 1 term i.e: route 10.1.1.0/24 via 198.51.100.3 { rip_metric = 3; };
+            
+            :Parameters:
+                dst_cidr: string
+                    Destination ip and subnetmask in cidr notation i.e: 1.1.1.0/24
+                next_hop: string
+                    Next hop to get the dst_cidr. In extended route next_hop is more informative i.e: 198.51.100.3 { rip_metric = 3; };
+        """
         self.extended_routes.append(ExtRoute(dst_cidr, next_hop))
 
-    def remove_route(self, dst_cidr, next_hop=None):
+    def remove_route(self, dst_cidr, next_hop = None):
+        '''
+            Remove route from our future cfg by his dst_cidr and next_hop. If next_hop was not provided it will remove every route with dst_cidr.
+            
+            :Parameters:
+                dst_cidr: string
+                    Destination ip and subnetmask in cidr notation i.e: 1.1.1.0/24
+                next_hop: string
+                    Next hop to get the dst_cidr. This is an optional argument, in case it was not provided it will remove every route with dst_cidr.
+        '''
         wanted_route = Route(dst_cidr, next_hop)
         if next_hop is None:
             # remove only by dst ip
@@ -67,11 +130,14 @@ class BirdCFGCreator:
             results = [r for r in self.routes if r == wanted_route]
             results.extend([r for r in self.extended_routes if r == wanted_route])
         if len(results) == 0:
-            print("Didn't remove anything!")
+            print("Did not find route: %s" % dst_cidr)
         for r in results:
             self.routes.remove(r)
 
     def build_config(self):
+        '''
+            Create our final bird.conf content. Merge the given bird.cfg from constructor with the routes & protocols the user added.
+        '''
         strings_to_merge = []
 
         # handle all non-static protocols #
@@ -124,7 +190,7 @@ class BirdCFGCreator:
             name = name.split(' ')
             if name[2].startswith('{'):
                 name[2] = name[1]  # if there is no name, take the protocol as name 
-            self.add_protocol(name[1], name[2], data.strip('{/}'), from_conf=True)
+            self.add_protocol(name[1], name[2], data.strip('{/}'), from_conf = True)
 
     def __repr__(self):
         return "Routes: {}\nExtended: {}\nProtocols: {}".format(self.routes, self.extended_routes, self.protocols)

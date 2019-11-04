@@ -1646,7 +1646,7 @@ full API could be found link:cp_stl_docs/api/namespace.html[namespace API]
 
 ===== Types of nodes
 
-All nodes are identified by a unique MAC address, however there are some differences. We support 3 types of nodes: *Normal, Shared Namespace and Bird nodes*. 
+All nodes are identified by a unique MAC address, however there are some differences. There are 3 types of nodes: *Normal, Shared Namespace and Bird nodes*. 
 
 ====== Normal Node
 
@@ -5750,21 +5750,7 @@ Now you have your final string with all your wanted protocols and routes ready t
 Commands in PyBird are divided to: query and commands. In case of using a query like: `get_config` connect will be enough. In case of using a command like: `set_config` you have to connect and acquire.
 The TRex client object hides this object but it is possible to use it directly 
 
-.API Commands
-[format="csv",cols="2^,2^,2^", options="header",width="100%"]
-|=================
-Command name , Query / Command, Description
-connect , None, Connect client to PyBird server. Only check versions and open the socket to bird.
-acquire,None, Acquire unique "handler" for client. PyBird Server can only acquire 1 client at a time. You may acquire by force: "force=True".
-get_config,Query,Return the current bird configuration.
-get_protocols_info,Query,Gets the information about the configured protocols as they are appeared in bird. 
-set_config,Command,Set the given config string as the new bird configuration. 
-set_empty_config,Command,Set emtpy config with no protocols and no routes.
-release,None,Release client's handler from server.
-disconnect,None,Disconnect client's from server and close the socket. Must be called after releasing client. 
-|=================
-
-===== Example
+===== Flow Example
 [source,python]
 ----
 b.connect()                 <1>
