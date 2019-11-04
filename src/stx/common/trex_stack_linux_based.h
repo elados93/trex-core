@@ -188,7 +188,7 @@ private:
     int                     m_epoll_fd;
     static string           m_mtu;
     static string           m_ns_prefix;
-    string                  m_shared_ns_prefix;
+    static string           m_shared_ns_prefix;
     static bool             m_is_initialized;
     uint64_t                m_next_namespace_id;
     uint64_t                m_next_bird_if_id;

@@ -131,13 +131,14 @@ bool CStackLinuxBased::m_is_initialized = false;
 string CStackLinuxBased::m_mtu = "";
 string CStackLinuxBased::m_ns_prefix = "";
 string CStackLinuxBased::m_bird_ns = "";
+string CStackLinuxBased::m_shared_ns_prefix = "";
 
 CStackLinuxBased::CStackLinuxBased(RXFeatureAPI *api, CRXCoreIgnoreStat *ignore_stats) : CStackBase(api, ignore_stats) {
     if ( !m_is_initialized ) {
         verify_programs();
         char prefix_char = clean_old_nets_and_get_prefix();
         m_ns_prefix = string("trex-") + prefix_char + "-";
-        m_shared_ns_prefix = string("trex-shared-ns");
+        m_shared_ns_prefix = string("trex-shared-ns-");
         debug("Using netns prefix " + m_ns_prefix);
         m_mtu = to_string(MAX_PKT_ALIGN_BUF_9K);
         if ( CGlobalInfo::m_options.m_is_bird_enabled ) {
@@ -847,7 +848,7 @@ void CNamespacedIfNode::conf_vlan_internal(const vlan_list_t &vlans, const vlan_
         }
         append_to_str(vlan, m_vlans_insert_to_pkt);
         bpf_str += "vlan " + to_string(vlan);
-        if ( vlan != *vlans.end() ) {
+        if ( vlan != vlans.back() ) {
             bpf_str += " and ";
         }
     }
