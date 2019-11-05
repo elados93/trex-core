@@ -1646,11 +1646,13 @@ full API could be found link:cp_stl_docs/api/namespace.html[namespace API]
 
 ===== Types of nodes
 
-All nodes are identified by a unique MAC address, however there are some differences. There are 3 types of nodes: *Normal, Shared Namespace and Bird nodes*. 
+All nodes are identified by a unique MAC address, however there are some differences. There are 3 types of nodes: *Normal, Shared Namespace and Bird nodes*.
+
+image::images/3_types_of_nodes.png[title="Three types of nodes",align="left",width={p_width}, link="images/3_types_of_nodes.png"]
 
 ====== Normal Node
 
-These are the default type of nodes, creating a namespace and a veth pair. These nodes are configured by ipv4 and a default gateway.
+These are the default type of nodes, creating 1 namespace and 1 veth pair. Adding another new node will create another namespace with 1 veth pair. These nodes are configured by ipv4 and a default gateway.
 
 .Example of usage
 [source,python]
@@ -1668,7 +1670,7 @@ More examples can be found link:trex_stateless.html#_add_one_node_using_batch_ap
 
 ====== Shared Namespace Node
 
-These are nodes with pre-created namespace, they only creating the veth pair on the existing namespace. That way you can create multiple veths for namespace. These nodes are configured by ipv4 and a subnet mask.
+These are nodes with pre-created namespace, they only creating the veth pair on the existing namespace. That way you can create multiple veths for namespace. These nodes are configured by ipv4 and a subnet mask and also can set default gateway for the whole namespace.
 
 .Example of usage
 [source,python]
@@ -1693,32 +1695,37 @@ c.set_namespace(0, method='set_ipv4', mac="00:01:02:03:04:06",
 
 ====== Bird Node
  
-Bird node is a specific case of shared namespace node. Bird namespace is created once running TRex with "--bird-server" flag, in that way they are similar to shared namespace. To learn more on the usage of bird with TRex see: link:trex_stateless.html#_bird_intgration_beta[Bird Integration].
+Bird node is a specific case of shared namespace node. Bird namespace is created once running TRex with "--bird-server" flag, in that way they are similar to shared namespace.
 
-NOTE: You cannot set is_bird = True and shared_ns = "my-ns", they are mutual exclusive arguments.
+To learn more on the usage of bird with TRex see:
+    
+    - link:trex_stateless.html#_bird_intgration_beta[Bird Integration]
 
-Examples with bird nodes can be found link:trex_stateless.html#_tutorial_simple_bird_node_adding[here].
+    - link:https://trex-tgn.cisco.com/trex/doc/cp_stl_docs/api/bird_node.html[Stateless Python API - Bird Node]
 
 ====== Summary of node types differences
 
 .Types of nodes differences
 |===
-|Node Type | Node : veth ratio | Namespace creation | Set ipv4  
+|Node Type | Node : veth ratio | Namespace creation | Subnet mask | Default Gateway
 
 |Normal
 |1 : 1
 |Created on each node
-|Ip address and default gateway
+|Not in use, using default gateway
+|1 for the whole node
 
 |Shared Namespace
 |1 : Many
-|Pre-created, name determined by user
-|Ip address and a subnet mask
+|Created by "add_shared_ns" command, name determined by TRex
+|Configured at "set_ipv4/6"
+|1 for the whole namespace
 
 |Bird
 |1 : Many
-|Pre-created, name determined by TRex
-|Ip address and a subnet mask
+|Pre-created , name determined by TRex
+|Configured at "set_ipv4/6"
+|Not in use, using subnet mask
 |===
 
 ===== Add one node using batch API
@@ -5524,7 +5531,7 @@ asr1001-01(config-router)#end
 
 The `--bird-server` will load the bird daemon and the ZMQ server 
 
-- In another shell run python script located at: `scripts/automation/trex_control_plane/interactive/trex/examples/stl/add_bird_node.py` (see see link:trex_manual.html#Simple[Simple bird node adding])
+- In another shell run python script located at: `scripts/automation/trex_control_plane/interactive/trex/examples/stl/add_bird_node.py` (see link:trex_stateless.html#_tutorial_simple_bird_node_adding[Simple bird node adding])
 
 .Example
 [source,python]
@@ -5571,7 +5578,7 @@ c.set_bird_node(node_port      = 0,                                 <4>
                 ipv4_subnet    = 24,
                 ipv6_enabled   = True,
                 ipv6_subnet    = 124,
-                vlans          = [22],
+                vlans          = [22],                              <5>
                 tpid           = [0x8100])
 
 c.set_bird_node(node_port      = 1,
@@ -5581,8 +5588,8 @@ c.set_bird_node(node_port      = 1,
                 ipv6_enabled   = True,
                 ipv6_subnet    = 124)
 
-pybird_c.check_protocols_up(['my_bgp1, my_bgp2'])                   <5>
-pybird_c.release()                                                  <6>
+pybird_c.check_protocols_up(['my_bgp1, my_bgp2'])                   <6>
+pybird_c.release()                                                  <7>
 pybird_c.disconnect()
 c.disconnect()
 ----
@@ -5590,8 +5597,9 @@ c.disconnect()
 <2> using BirdCFGCreator in order to make bird configuration
 <3> sending our new config
 <4> create 2 veth's in bird namespace
-<5> ensure bird works on our protocols
-<6> exiting gracefully PyBirdClient
+<5> dot1q is a configuration of veth not namespace
+<6> ensure bird works on our protocols
+<7> exiting gracefully PyBirdClient
 
 The python script will create the 2 veth's and send bird a simple config file with bgp protocol and 2 static routes. You can check if it worked on the dut side - look for the two new bgp routes:
 
@@ -5675,6 +5683,9 @@ cmds.add_node(mac, is_bird=True)
 
 In the constructor you may provide your own cfg file as a string, in case you don't provide one it will use our default cfg contains only "device protocol" scanning new devices every 1 second and a dummy "router id" ip (this is only for bird running for the first time with no aviable interface).
 
+see: link:https://trex-tgn.cisco.com/trex/doc/cp_stl_docs/api/bird_cfg_creator.html[Stateless Python API - Bird CFG Creator]
+
+
 [NOTE]
 =====================================================================
 When supplying bird config file or any data, it must be valid according to link:https://bird.network.cz/?get_doc&v=20&f=bird-3.html[Bird's Documentation]
@@ -5738,10 +5749,12 @@ Now you have your final string with all your wanted protocols and routes ready t
 
 *Goal*:: Communicating with PyBird Server located on TRex machine using JSON-RPC over ZMQ.
 
+see: link:https://trex-tgn.cisco.com/trex/doc/cp_stl_docs/api/pybird_client.html[Stateless Python API - PyBird Client]
+
 ===== General Flow
 1. connect - connect to server.
 2. acquire - get handler from server.
-3. some commands like: get_config, set_config ...
+3. some commands like: get_config, set_config e.t.c
 4. relase - let go the handler from server.
 5. disconnect - end the session.
 

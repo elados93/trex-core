@@ -2,12 +2,12 @@
 Bird Node
 =======================
 
-More on "Bird" you can find at `Bird documentation <https://bird.network.cz/?get_doc&f=bird.html&v=20>`_
+:Learn more about Bird:
+    - `Bird official documentation <https://bird.network.cz/?get_doc&f=bird.html&v=20>`_
+    - `Bird integration with TRex <https://trex-tgn.cisco.com/trex/doc/trex_stateless.html#_bird_intgration_beta>`_
 
-The API works when  `stack: linux_based` in trex_cfg and "--bird-server" flag is on.
+The API works when configuring `stack: linux_based` in trex_cfg and "--bird-server" flag is on when running TRex.
 Using this API the user can add a veth to the bird namespace in TRex.
-
-*notes*: adding/removing namespace is rather slow (~100msec)
 
 The following snippet create 2 bird nodes with ipv4 and ipv6 ::
 
@@ -27,7 +27,7 @@ The following snippet create 2 bird nodes with ipv4 and ipv6 ::
                     ipv4_subnet    = 24,
                     ipv6_enabled   = True,
                     ipv6_subnet    = 124,
-                    vlans          = [22],
+                    vlans          = [22],      # dot1q is a configuration of veth not namespace
                     tpid           = [0x8100])
 
     c.set_bird_node(node_port      = 1,
@@ -69,6 +69,8 @@ More advanced way to do that::
 
     # print the results
     print(res)
+
+*note*: calling "add_node" with is_bird = True and shared_ns = "my-ns" is not allowed, they are mutual exclusive arguments.
 
 Get Stats::
 

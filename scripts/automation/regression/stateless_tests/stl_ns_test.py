@@ -110,6 +110,8 @@ class STLNS_Test(CStlGeneral_Test):
     def test_ping_to_ns(self):
 
         # this test works on specific setup with specific configuration 
+        if not CTRexScenario.setup_name in ('trex17'):
+            return
         c= self.stl_trex
         try:
            c.set_port_attr(promiscuous = True, multicast = True)
@@ -209,6 +211,7 @@ class STLNS_Test(CStlGeneral_Test):
         cmds.add_node(MAC, shared_ns = ns_name)
         cmds.set_ipv4(MAC, ipv4 = "1.1.1.3", subnet = 24, shared_ns = True)
         cmds.set_ipv6(MAC, subnet = 127, enable = True, shared_ns = True)
+        cmds.set_vlan(MAC, vlans = [22], tpids = [0x8011])
 
         c.set_namespace_start(port, cmds)
         c.wait_for_async_results(port)
@@ -273,7 +276,7 @@ class STLNS_Test(CStlGeneral_Test):
 
         assert len(cnt) == 0, 'Counters should be zero'
 
-    def test_many_ns(self):
+    def test_many_shared_ns(self):
 
         def get_mac (prefix, index):
             mac = "{}:{:02x}:{:02x}".format(prefix, (index>>8) & 0xff,(index & 0xff))
@@ -300,7 +303,7 @@ class STLNS_Test(CStlGeneral_Test):
         try:
             c = self.stl_trex
             c.namespace_remove_all()
-            ns_name = self._create_shared_ns()
+            ns_name = self._create_shared_ns(port = 0)
 
             cmds = build_network (100, ns_name = ns_name)
             c.set_namespace_start(0, cmds)
@@ -321,6 +324,8 @@ class STLNS_Test(CStlGeneral_Test):
     def test_ping_to_shared_ns(self):
 
         # this test works on specific setup with specific configuration 
+        if not CTRexScenario.setup_name in ('trex17'):
+            return
         c = self.stl_trex
         try:
            c.set_port_attr(promiscuous = True, multicast = True)
@@ -344,3 +349,35 @@ class STLNS_Test(CStlGeneral_Test):
            c.set_l3_mode_line('-p 1 --src 1.1.1.2 --dst 1.1.1.1')
            c.set_port_attr(promiscuous = False, multicast = False)
            c.namespace_remove_all()
+
+    def test_get_node_info(self):
+        c = self.stl_trex
+        MAC = "00:01:02:03:04:05"
+        try:
+            c.namespace_remove_all()
+            ns_name = self._create_shared_ns(port = 0)
+            
+            cmds = NSCmds()
+            cmds.add_node(MAC, shared_ns = ns_name)
+            cmds.set_ipv4(MAC, ipv4 = "1.1.1.3", subnet = 24, shared_ns = True)
+            cmds.set_ipv6(MAC, enable = True, subnet = 127, shared_ns = True)
+            cmds.set_vlan(MAC, vlans = [22], tpids = [0x8100])
+
+            c.set_namespace_start(0, cmds)
+            c.wait_for_async_results(0)
+
+            res = c.set_namespace(0, method = "get_nodes_info",  macs_list = [MAC])
+            nodes = res['result']['nodes']
+            assert(len(nodes) == 1)
+            node_info = nodes[0]
+            assert(node_info['ether']['src'] == MAC)
+            assert(node_info['bpf'] == "vlan 22 and not udp and not tcp")
+            assert(node_info['ipv4']['src'] == "1.1.1.3")
+            assert(node_info['ipv4']['subnet'] == 24)
+            assert(node_info['ipv6']['enabled'] == True)
+            assert(node_info['ipv6']['subnet'] == 127)
+            assert(node_info['vlan']['tags'] == [22])
+            assert(node_info['vlan']['tpids'] == [0x8100])
+            
+        finally:
+            c.namespace_remove_all()

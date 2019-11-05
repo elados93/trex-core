@@ -20,6 +20,7 @@ Topology::
 +------------+                            |               +--------------+
                                           |                              |
                                           +------------------------------+
+Link to Python API - Bird Node: https://trex-tgn.cisco.com/trex/doc/cp_stl_docs/api/bird_node.html
 """
 
 c = STLClient()
@@ -31,16 +32,6 @@ c.set_service_mode(ports = my_ports, enabled = True)
 pybird_c = PyBirdClient(ip='localhost', port=4509)
 pybird_c.connect()
 pybird_c.acquire()
-
-# c.set_namespace(0, method='add_node', mac="00:00:00:01:00:07", shared_ns = "ns")
-# c.set_namespace(0, method='set_ipv4', mac="00:00:00:01:00:07", 
-#                                         ipv4 = "1.1.1.3", subnet = 24, shared_ns = True)
-
-# c.set_namespace(0, method='set_dg', dg="1.1.1.4", shared_ns = "ns")
-# c.set_namespace(0, method='set_dg', dg="1.1.1.5", shared_ns = "ns")
-# c.set_namespace(0, method='set_dg', dg="1.1.1.6", shared_ns = "ns")
-
-# c.set_namespace(0, method='set_dg', shared_ns = "ns", dg = "0.0.0.0")
 
 bird_cfg = BirdCFGCreator()
 bgp_data1 = """
@@ -73,7 +64,7 @@ c.set_bird_node(node_port      = 0,
                 ipv4_subnet    = 24,
                 ipv6_enabled   = True,
                 ipv6_subnet    = 124,
-                vlans          = [22],
+                vlans          = [22],                  # dot1q is a configuration of veth not namespace 
                 tpid           = [0x8100])
 
 c.set_bird_node(node_port      = 1,

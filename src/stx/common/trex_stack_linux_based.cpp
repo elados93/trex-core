@@ -295,7 +295,7 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_remove_shared_ns(const std::string & sha
 trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_filter(const std::string &mac, const std::string &filter) {
     try {
         CNamespacedIfNode * lp = get_node_rpc(mac);
-        lp->set_filter(filter);
+        lp->set_bpf_filter(filter);
     } catch (const TrexException &ex) {
         throw TrexRpcException(ex.what());
     }
@@ -675,18 +675,18 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_counters_get_value(bool zeros, Json::Val
 trex_rpc_cmd_rc_e CStackLinuxBased::rpc_get_nodes_info(const Json::Value &params,
                                                        Json::Value &result){
     try {
-    result["nodes"]= Json::arrayValue;
+        result["nodes"]= Json::arrayValue;
 
-    int i;
-    for (i=0; i<params.size(); i++) {
-        string mac_str = params[i].asString();
-        CNamespacedIfNode * lp=get_node_rpc(mac_str);
-        if (lp) {
-            Json::Value json_val;
-            lp->to_json_node(json_val);
-            result["nodes"].append(json_val);
+        int i;
+        for (i=0; i<params.size(); i++) {
+            string mac_str = params[i].asString();
+            CNamespacedIfNode * lp=get_node_rpc(mac_str);
+            if (lp) {
+                Json::Value json_val;
+                lp->to_json_node(json_val);
+                result["nodes"].append(json_val);
+            }
         }
-    }
     } catch (const TrexException &ex) {
        throw TrexRpcException(ex.what());
     }
@@ -741,7 +741,7 @@ void CNamespacedIfNode::to_json_node(Json::Value &res) {
     res["is-shared-ns"] = m_is_shared_ns;
     res["linux-veth-internal"] = m_if_name + "-L";
     res["linux-veth-external"] = m_if_name + "-T";
-    res["bpf"] = m_bpf;
+    res["bpf"] = m_bpf_str;
 }
 
 uint16_t CNamespacedIfNode::filter_and_send(const string &pkt) {
@@ -856,7 +856,7 @@ void CNamespacedIfNode::conf_vlan_internal(const vlan_list_t &vlans, const vlan_
     if ( !default_bpf.empty() ) {
         bpf_str += " and " + default_bpf;
     }
-    m_bpf = bpfjit_compile(bpf_str.c_str());
+    set_bpf_filter(bpf_str);
     m_mcast_filter->add_del_vlans(vlans.size(), m_vlan_tags.size());
     m_vlan_tags = vlans;
     m_vlan_tpids = tpids;
@@ -984,7 +984,7 @@ CLinuxIfNode::CLinuxIfNode(const string &ns_name, const string &mac_str, const s
     create_veths(mtu);
     set_src_mac(mac_str, mac_buf);
     bind_pair();
-    m_bpf = bpfjit_compile(get_default_bpf());
+    set_bpf_filter(get_default_bpf());
     m_mcast_filter = &mcast_filter;
     m_mcast_filter->add_empty();
 }
@@ -1020,7 +1020,7 @@ CSharedNSIfNode::CSharedNSIfNode(const string &ns_name, const string &if_name, c
     create_veths(mtu);
     set_src_mac(mac_str, mac_buf);
     bind_pair();
-    m_bpf = bpfjit_compile(get_default_bpf());
+    set_bpf_filter(get_default_bpf());
     m_mcast_filter = &mcast_filter;
     m_mcast_filter->add_empty();
     

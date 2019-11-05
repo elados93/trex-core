@@ -71,8 +71,9 @@ public:
 
     virtual void to_json_node(Json::Value &res);
 
-    void set_filter(const string &filter) {
+    void set_bpf_filter(const string &filter) {
         m_bpf = bpfjit_compile(filter.c_str());
+        m_bpf_str = filter;
     }
 
 
@@ -94,6 +95,7 @@ protected:
     string          m_ns_name;
     string          m_if_name;
     bpf_h           m_bpf;
+    string          m_bpf_str;
     string          m_vlans_insert_to_pkt;
     CMcastFilter   *m_mcast_filter;
 public:

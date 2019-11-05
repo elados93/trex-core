@@ -2,15 +2,18 @@
 Bird CFG Creator
 =======================
 
-More on "Bird" you can find at `Bird documentation <https://bird.network.cz/?get_doc&f=bird.html&v=20>`_ or more focused at `Bird configuration <https://bird.network.cz/?get_doc&v=20&f=bird-3.html>`_.
+:Learn more about Bird:
+    - `Bird configuration docs <https://bird.network.cz/?get_doc&v=20&f=bird-3.html>`_
+    - `Bird integration with TRex <https://trex-tgn.cisco.com/trex/doc/trex_stateless.html#_bird_intgration_beta>`_
 
 Using this API the user can create his own custom bird configuration file, adding/removing routes and routing protocols. When the final config file is read to send, you can use PyBirdClient to do so.
-The working flow is simple as:
-1. Create BirdCFGCreator object, passing current bird configuration as a string.
-2. Manipulate the future config: add/remove routes and routing protocols.
-3. Create the final bird.conf content as a string.
 
-The following snippet create 2 bird nodes with ipv4 and ipv6 ::
+The working flow is simple as:
+    - Create BirdCFGCreator object, passing current bird configuration as a string.
+    - Manipulate the future config: add/remove routes and routing protocols.
+    - Create the final bird.conf content as a string.
+
+The following snippet create bird configuration with 2 bgp protocols and 2 routes ::
 
     bird_cfg = BirdCFGCreator()
 
