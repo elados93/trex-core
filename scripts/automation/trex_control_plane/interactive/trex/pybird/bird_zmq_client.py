@@ -156,10 +156,8 @@ class PyBirdClient():
                     if protocol in split_line[0] and 'up' not in split_line[3]:
                         down_protocols.append(protocol)
             if not down_protocols:
-                print('bird is connected to dut on protocols: "%s"' % protocols_list)
                 return
             else:
-                print('bird is not connected to dut, waiting for protocols: "%s"' % down_protocols)
                 time.sleep(poll_rate)
         raise Exception('timeout passed, protocols "%s" still down in bird' % down_protocols)
         
