@@ -112,28 +112,28 @@ class STLNS_Test(CStlGeneral_Test):
         # this test works on specific setup with specific configuration 
         if not CTRexScenario.setup_name in ('trex17'):
             return
-        c= self.stl_trex
+        c = self.stl_trex
         try:
-           c.set_port_attr(promiscuous = True, multicast = True)
-           cmds=NSCmds()
-           MAC="00:01:02:03:04:05"
-           cmds.add_node(MAC)
-           cmds.set_ipv4(MAC,"1.1.1.3","1.1.1.2")
-           cmds.set_ipv6(MAC,True)
+            c.set_port_attr(promiscuous = True, multicast = True)
+            cmds=NSCmds()
+            MAC="00:01:02:03:04:05"
+            cmds.add_node(MAC)
+            cmds.set_ipv4(MAC,"1.1.1.3","1.1.1.2")
+            cmds.set_ipv6(MAC,True)
 
-           c.set_namespace_start(0, cmds)
-           c.wait_for_async_results(0)
-           c.set_l3_mode_line('-p 1 --src 1.1.1.2 --dst 1.1.1.3')
-           r=c.ping_ip(1,'1.1.1.3')
+            c.set_namespace_start(0, cmds)
+            c.wait_for_async_results(0)
+            c.set_l3_mode_line('-p 1 --src 1.1.1.2 --dst 1.1.1.3')
+            r=c.ping_ip(1,'1.1.1.3')
 
-           assert len(r)==5, 'should be 5 responses '
-           assert r[0].state == ServiceICMP.PINGRecord.SUCCESS 
+            assert len(r)==5, 'should be 5 responses '
+            assert r[0].state == ServiceICMP.PINGRecord.SUCCESS 
 
 
         finally: 
-           c.set_l3_mode_line('-p 1 --src 1.1.1.2 --dst 1.1.1.1')
-           c.set_port_attr(promiscuous = False, multicast = False)
-           c.namespace_remove_all()
+            c.set_l3_mode_line('-p 1 --src 1.1.1.2 --dst 1.1.1.1')
+            c.set_port_attr(promiscuous = False, multicast = False)
+            c.namespace_remove_all()
 
     def test_many_ns(self):
 
@@ -183,8 +183,7 @@ class STLNS_Test(CStlGeneral_Test):
     #####################
 
     def _create_shared_ns(self, port):
-        c = self.stl_trex
-        r = c.set_namespace(port, method = "add_shared_ns")
+        r = self.stl_trex.set_namespace(port, method = "add_shared_ns")
         return str(r['result'])
 
     def test_shared_ns_add_remove(self):
@@ -350,7 +349,7 @@ class STLNS_Test(CStlGeneral_Test):
            c.set_port_attr(promiscuous = False, multicast = False)
            c.namespace_remove_all()
 
-    def test_get_node_info(self):
+    def test_get_shared_ns_node_info(self):
         c = self.stl_trex
         MAC = "00:01:02:03:04:05"
         try:
@@ -379,5 +378,32 @@ class STLNS_Test(CStlGeneral_Test):
             assert(node_info['vlan']['tags'] == [22])
             assert(node_info['vlan']['tpids'] == [0x8100])
             
+        finally:
+            c.namespace_remove_all()
+
+    def test_setting_shared_ns_vlans(self):
+        c = self.stl_trex
+        try:
+            c.namespace_remove_all()
+            ns_name = self._create_shared_ns(port = 0)
+
+            MAC = "00:01:02:03:04:05"
+            c.set_namespace(0, method = "add_node" ,mac = MAC, shared_ns = ns_name)
+
+            vlans_list = [[22], [22, 23], [22, 23]]
+            tpids_list = [[0x8100], [0x8100, 0x8100], [0x8100, 0x8100]]
+
+            for vlans, tpids in zip(vlans_list, tpids_list):
+
+                cmds = NSCmds()
+                cmds.set_vlan(MAC, vlans, tpids)
+                cmds.get_nodes_info([MAC])
+                c.set_namespace_start(0, cmds)
+                nodes = c.wait_for_async_results(0)[1]['result']['nodes']
+                
+                assert(len(nodes) == 1)
+                node_info = nodes[0]
+                assert(node_info['vlan']['tags'] == vlans)
+                assert(node_info['vlan']['tpids'] == tpids)
         finally:
             c.namespace_remove_all()

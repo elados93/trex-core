@@ -134,6 +134,7 @@ public:
     trex_rpc_cmd_rc_e rpc_set_ipv4(const Json::Value &params, Json::Value &result);
     trex_rpc_cmd_rc_e rpc_set_filter(const Json::Value &params, Json::Value &result);
     trex_rpc_cmd_rc_e rpc_set_dg(const Json::Value &params, Json::Value &result);
+    trex_rpc_cmd_rc_e rpc_set_mtu(const Json::Value &params, Json::Value &result);
     trex_rpc_cmd_rc_e rpc_clear_ipv4(const Json::Value &params, Json::Value &result);
     trex_rpc_cmd_rc_e rpc_set_ipv6(const Json::Value &params, Json::Value &result);
     trex_rpc_cmd_rc_e rpc_remove_all(const Json::Value &params, Json::Value &result);
@@ -271,6 +272,11 @@ public:
     }
     
     virtual trex_rpc_cmd_rc_e rpc_set_dg(const std::string & shared_ns, const std::string &dg) {
+        throw_not_supported();
+        return(TREX_RPC_CMD_INTERNAL_ERR);
+    }
+
+    virtual trex_rpc_cmd_rc_e rpc_set_mtu(const std::string & mac, const std::string &mtu) {
         throw_not_supported();
         return(TREX_RPC_CMD_INTERNAL_ERR);
     }

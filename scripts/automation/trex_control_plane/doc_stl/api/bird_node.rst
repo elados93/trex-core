@@ -28,7 +28,7 @@ The following snippet create 2 bird nodes with ipv4 and ipv6 ::
                     ipv6_enabled   = True,
                     ipv6_subnet    = 124,
                     vlans          = [22],      # dot1q is a configuration of veth not namespace
-                    tpid           = [0x8100])
+                    tpids          = [0x8100])
 
     c.set_bird_node(node_port      = 1,
                     mac            = "00:00:00:01:00:08",

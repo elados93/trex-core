@@ -79,8 +79,8 @@ class NSCmds(object):
 
     def add_shared_ns(self):
         '''
-        simply adding new namespace to TRex with no veth.
-        return the name of the new namespace.
+            simply adding new namespace to TRex with no veth.
+            return the name of the new namespace.
         '''
         self.add_cmd ('add_shared_ns')
 
@@ -117,6 +117,7 @@ class NSCmds(object):
         ArgVerify.verify(self.__class__.__name__, ver_args)
         self.add_cmd ('remove_shared_ns', shared_ns = shared_ns)
 
+    # set commands
     def set_dg(self, shared_ns, dg):
         '''
         set or change default gateway for the whole namespace. works only on shared_ns nodes.
@@ -210,7 +211,8 @@ class NSCmds(object):
         self.add_cmd('set_ipv4', **cmd_args)
 
     def set_filter(self, mac, bpf_filter):
-        ''' set or change bpf filter 
+        ''' 
+            set or change bpf filter. Warning - bad filter might crash TRex!
 
             :parameters:
 
@@ -227,19 +229,6 @@ class NSCmds(object):
         ArgVerify.verify(self.__class__.__name__, ver_args)
         cmd_args = {'mac': mac, 'filter': bpf_filter}
         self.add_cmd('set_filter', **cmd_args)
-
-    def clear_ipv4(self,mac):
-        ''' remove ipv4 configuration from the ns
-
-            :parameters:
-               None
-
-        '''
-        ver_args = {"types":
-                    [{"name": "mac", 'arg': mac, "t": "mac"}]
-                     }
-        ArgVerify.verify(self.__class__.__name__, ver_args)
-        self.add_cmd ('clear_ipv4',mac=mac)
 
     def set_ipv6(self, mac, enable, src_ipv6 = None, subnet = None, shared_ns = False):
         ''' set ns ipv6 
@@ -283,10 +272,42 @@ class NSCmds(object):
         cmd_params["src_ipv6"] = src_ipv6
         self.add_cmd ('set_ipv6', **cmd_params)
 
+    def set_mtu(self, mac, mtu):
+        ''' Set mtu for a given mac
+
+            :parameters:
+                
+                mac: string
+                    Key to the already created namespace in format xx:xx:xx:xx:xx:xx
+
+                mtu: int
+                    The new mtu to set for the node with that mac
+        '''
+        ver_args = {"types":
+                    [{"name": "mac", 'arg': mac, "t": "mac"},
+                    {"name": "mtu", 'arg': mtu, "t": str}]
+                     }
+        ArgVerify.verify(self.__class__.__name__, ver_args)
+        self.add_cmd ('set_mtu', mac = mac, mtu = mtu)     
+
+    def clear_ipv4(self,mac):
+        ''' remove ipv4 configuration from the ns
+
+            :parameters:
+               None
+
+        '''
+        ver_args = {"types":
+                    [{"name": "mac", 'arg': mac, "t": "mac"}]
+                     }
+        ArgVerify.verify(self.__class__.__name__, ver_args)
+        self.add_cmd ('clear_ipv4',mac=mac)
+    
     def remove_all(self):
         ''' remove all namespace nodes '''
         self.add_cmd('remove_all')
 
+    # get commands
     def get_nodes(self):
         '''
           get all nodes macs (keys)
@@ -318,7 +339,6 @@ class NSCmds(object):
                      }
 
         self.add_cmd ('counters_get_value',zeros=zeros)
-
 
     def __rpc_help (self):
         """ this is for debug """

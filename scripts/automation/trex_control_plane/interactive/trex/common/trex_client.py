@@ -1468,12 +1468,12 @@ class TRexClient(object):
     @client_api('command', True)
     def set_bird_node(self, node_port,
                             mac,
-                            ipv4,
-                            ipv4_subnet,
-                            ipv6_enabled,
-                            ipv6_subnet,
+                            ipv4 = None,
+                            ipv4_subnet = None,
+                            ipv6_enabled = None,
+                            ipv6_subnet = None,
                             vlans = None,
-                            tpid = None):
+                            tpids = None):
         """
             a utility function that works on top of :func:`set_namespace_start` and :func:`wait_for_async_results` batch operation API. 
             the function creates a "bird node" using veth's in bird namespace in trex. 
@@ -1487,7 +1487,7 @@ class TRexClient(object):
                                 ipv6_enabled   = True,
                                 ipv6_subnet    = 124,
                                 vlans          = [22],
-                                tpid           = [0x8100])
+                                tpids           = [0x8100])
 
             :parameters:
 
@@ -1512,8 +1512,8 @@ class TRexClient(object):
                  vlans: list
                     Array of up to 2 uint16 tags.
 
-                 tpid: list
-                    Array of tpids that correspond to vlans.
+                 tpids: list
+                    Array of tpidss that correspond to vlans.
                     Default is [0x8100] in case of single VLAN and [0x88a8, 0x8100] in case of QinQ.
             :raises:
                 + :exc:`TRexError` in case of any error
@@ -1532,19 +1532,24 @@ class TRexClient(object):
         except TRexError:
             # node with mac addres does not exists, create new one
 
-            self.set_port_attr(promiscuous=True)
-            self.namespace_remove_all(ports=[node_port])
+            self.set_port_attr(promiscuous = True)
+            self.namespace_remove_all(ports = [node_port])
 
             cmds = NSCmds()
-            cmds.add_node(mac, is_bird=True)
-            cmds.set_ipv4(mac, ipv4, subnet=ipv4_subnet, shared_ns=True)
-            cmds.set_ipv6(mac, ipv6_enabled, subnet=ipv6_subnet, shared_ns=True)
+            cmds.add_node(mac, is_bird = True)
+            if ipv4 is not None and ipv4_subnet is not None:
+                cmds.set_ipv4(mac, ipv4, subnet = ipv4_subnet, shared_ns = True)
+            if ipv6_enabled is not None and ipv6_subnet is not None:
+                cmds.set_ipv6(mac, ipv6_enabled, subnet = ipv6_subnet, shared_ns = True)
             if vlans is not None:
                 ver_args = {"types":[{"name": "vlans", 'arg': vlans, "t": list}]}
-                if tpid is not None:
-                    ver_args['types'].append({"name": "tpid", 'arg': tpid, "t": list})
+                if tpids is not None:
+                    ver_args['types'].append({"name": "tpids", 'arg': tpids, "t": list})
                 ArgVerify.verify(self.__class__.__name__, ver_args)
-                cmds.set_vlan(mac, vlans, tpid)
+                cmds.set_vlan(mac, vlans, tpids)
+            
+            # set mtu
+            cmds.set_mtu(mac, "2048")
 
             self.set_namespace_start(node_port, cmds)
             self.wait_for_async_results(node_port)

@@ -53,7 +53,7 @@ void str_from_mbuf(const rte_mbuf_t *m, string &result);
 void popen_with_err(const string &cmd, const string &err);
 void popen_general(const string &cmd, const string &err, bool throw_exception, string &output);
 void popen_with_output(const string &cmd, const string &err, bool throw_exception, string &output);
-void run_in_ns(const string &cmd, const string &err, const string &ns);
+void run_in_ns(const string &cmd, const string &err, const string &ns, bool throw_ex);
 
 CMcastFilter::CMcastFilter() {
     m_vlan_nodes[0] = 0;
@@ -166,7 +166,10 @@ CStackLinuxBased::~CStackLinuxBased() {
         kill_bird_ns();
         m_is_initialized = false;
     }
-    rpc_remove_all(); // ensure all shared namespaces are deleted
+    std::string err = remove_all_internal(); // ensure all shared namespaces are deleted
+    if ( !err.empty() ) {
+        std::cout << "Error in removing nodes in LinuxBasedStack d'tor: " << std::endl << err << std::endl;
+    }
 }
 
 void CStackLinuxBased::handle_pkt(const rte_mbuf_t *m) {
@@ -304,8 +307,18 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_filter(const std::string &mac, const
 
 trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_dg(const std::string &shared_ns, const std::string &dg) {
     try {
-        string op = is_dg_set_in_ns(shared_ns) ? "change" : "add";   
-        run_in_ns("ip -4 route " + op + " default via " + dg, "Could not set default IPv4 gateway for veth", shared_ns);
+        string op = is_dg_set_in_ns(shared_ns) ? "change" : "add";
+        run_in_ns("ip -4 route " + op + " default via " + dg, "Could not set default IPv4 gateway for veth", shared_ns, true);
+    } catch (const TrexException &ex) {
+        throw TrexRpcException(ex.what());
+    }
+    return (TREX_RPC_CMD_OK);
+}
+
+trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_mtu(const std::string &mac, const std::string &mtu) {
+    try {
+        CNamespacedIfNode * lp = get_node_rpc(mac);
+        lp->set_mtu_internal(mtu);
     } catch (const TrexException &ex) {
         throw TrexRpcException(ex.what());
     }
@@ -394,11 +407,12 @@ void CStackLinuxBased::create_bird_ns() {
 }
 
 void CStackLinuxBased::run_bird_in_ns() {
-    string bird_tmp_files = "/tmp/trex/bird";
+    string bird_tmp_files = "/tmp/trex-bird";
+    string out;
     stringstream cmd;
     cmd << " cd " << m_bird_path << "; ./trex_bird -c bird.conf -s " << bird_tmp_files << "/bird.ctl";
-    run_in_ns(cmd.str(), "Error running bird process", m_bird_ns);
-    popen_with_err("chmod 666 " + bird_tmp_files + "/bird.ctl", "cannot change permissions of bird.ctl for PyBird client communication");
+    run_in_ns(cmd.str(), "Error running bird process", m_bird_ns, false);
+    popen_with_output("chmod 666 " + bird_tmp_files + "/bird.ctl", "cannot change permissions of bird.ctl for PyBird client communication", false, out);
 }
 
 void CStackLinuxBased::kill_bird_ns() {
@@ -610,7 +624,7 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_remove_all(){
     return (TREX_RPC_CMD_OK);
 }
 
-void CStackLinuxBased::remove_all_internal(){
+const std::string CStackLinuxBased::remove_all_internal(){
     std::vector<std::string> m_vec;
 
     std::string last_ex;
@@ -640,19 +654,25 @@ void CStackLinuxBased::remove_all_internal(){
               del_node_internal(mac_buf);
             } catch (const TrexException &ex) {
                 last_ex  = ex.what();
-                error = true;
+                error    = true;
             }
         }
         m_vec.clear();
     }
 
     for (auto &ns_name : m_shared_ns_names) {
-        popen_with_err("ip netns del " + ns_name, "cannot remove shared ns node with name space " + ns_name);
+        string out;
+        popen_general("ip netns del " + ns_name, "cannot remove shared ns node with name space " + ns_name, false, out);
+        if ( !out.empty() ) {
+            return out;
+        }
     }
     m_shared_ns_names.clear();
 
     if (error) {
-        throw TrexRpcException(last_ex);
+        return last_ex;
+    } else {
+        return ""; // no exceptions
     }
 }
 
@@ -883,6 +903,9 @@ void CNamespacedIfNode::conf_ip6_internal(bool enabled, const string &ip6_buf) {
 void CNamespacedIfNode::conf_shared_ns_ip6_internal(bool enabled, const string &ip6_buf, uint8_t subnet) {
     throw TrexException("Wrong node type, must be shared namespace node!");
 }
+void CNamespacedIfNode::set_mtu_internal(const std::string &mtu) {
+    throw TrexException("Wrong node type, must be shared namespace node!");
+}
 
 void CLinuxIfNode::conf_ip4_internal(const string &ip4_buf, const string &gw4_buf) {
     clear_ip4_internal();
@@ -902,20 +925,6 @@ void CLinuxIfNode::conf_ip4_internal(const string &ip4_buf, const string &gw4_bu
     m_gw4 = gw4_buf;
 }
 
-void CSharedNSIfNode::conf_shared_ns_ip4_internal(const string &ip4_buf, uint8_t subnet) {
-    if ( subnet < 1 || subnet > 32 ) {
-        throw TrexException("subnet: " + to_string(subnet) + " is not valid!");
-    }
-    clear_ip4_internal();
-    char buf[INET_ADDRSTRLEN];
-
-    inet_ntop(AF_INET, ip4_buf.c_str(), buf, INET_ADDRSTRLEN);
-    string ip4_str(buf);
-    run_in_ns("ip -4 addr add " + ip4_str + "/" + to_string(subnet) + " dev " + m_if_name + "-L", "Could not set IPv4 for veth");
-
-    m_ip4 = ip4_buf;
-    m_subnet4 = subnet;
-}
 
 void CNamespacedIfNode::clear_ip6_internal() {
     run_in_ns("sysctl net.ipv6.conf." + m_if_name + "-L.disable_ipv6=1", "Could not disable ipv6 for veth");
@@ -937,25 +946,6 @@ void CLinuxIfNode::conf_ip6_internal(bool enabled, const string &ip6_buf) {
     }
     m_ip6_enabled = enabled;
     m_ip6 = ip6_buf;
-}
-
-void CSharedNSIfNode::conf_shared_ns_ip6_internal(bool enabled, const string &ip6_buf, uint8_t subnet) {
-    if ( subnet < 1 || subnet > 128 ) {
-        throw TrexException("subnet: " + to_string(subnet) + " is not valid!");
-    }
-    clear_ip6_internal();
-    char buf[INET6_ADDRSTRLEN];
-    if ( enabled ) {
-        run_in_ns("sysctl net.ipv6.conf." + m_if_name + "-L.disable_ipv6=0", "Could not enable ipv6 for veth");
-        if ( ip6_buf.size() ) {
-            inet_ntop(AF_INET6, ip6_buf.c_str(), buf, INET6_ADDRSTRLEN);
-            string ip6_str(buf);
-            run_in_ns("ip -6 addr add " + ip6_str + "/" + to_string(subnet) + " dev " + m_if_name + "-L", "Could not set IPv6 for veth");
-        }
-    }
-    m_ip6_enabled = enabled;
-    m_ip6 = ip6_buf;
-    m_subnet6 = subnet;
 }
 
 // veth pair (from TRex side)
@@ -1037,11 +1027,50 @@ void CSharedNSIfNode::create_veths(const string &mtu) {
     CNamespacedIfNode::create_veths(mtu);
     run_in_ns("ethtool -K " + m_if_name + "-L tx off rx off sg off", 
     "Could not disable rx checksum, tx checksum, and tcp segmentation for bird internal veth");
-
 }
 
 const char *CSharedNSIfNode::get_default_bpf() {
     return m_is_bird ? "" : "not udp and not tcp";
+}
+
+void CSharedNSIfNode::conf_shared_ns_ip4_internal(const string &ip4_buf, uint8_t subnet) {
+    if ( subnet < 1 || subnet > 32 ) {
+        throw TrexException("subnet: " + to_string(subnet) + " is not valid!");
+    }
+    clear_ip4_internal();
+    char buf[INET_ADDRSTRLEN];
+
+    inet_ntop(AF_INET, ip4_buf.c_str(), buf, INET_ADDRSTRLEN);
+    string ip4_str(buf);
+    run_in_ns("ip -4 addr add " + ip4_str + "/" + to_string(subnet) + " dev " + m_if_name + "-L", "Could not set IPv4 for veth");
+
+    m_ip4 = ip4_buf;
+    m_subnet4 = subnet;
+}
+
+
+void CSharedNSIfNode::conf_shared_ns_ip6_internal(bool enabled, const string &ip6_buf, uint8_t subnet) {
+    if ( subnet < 1 || subnet > 128 ) {
+        throw TrexException("subnet: " + to_string(subnet) + " is not valid!");
+    }
+    clear_ip6_internal();
+    char buf[INET6_ADDRSTRLEN];
+    if ( enabled ) {
+        run_in_ns("sysctl net.ipv6.conf." + m_if_name + "-L.disable_ipv6=0", "Could not enable ipv6 for veth");
+        if ( ip6_buf.size() ) {
+            inet_ntop(AF_INET6, ip6_buf.c_str(), buf, INET6_ADDRSTRLEN);
+            string ip6_str(buf);
+            run_in_ns("ip -6 addr add " + ip6_str + "/" + to_string(subnet) + " dev " + m_if_name + "-L", "Could not set IPv6 for veth");
+        }
+    }
+    m_ip6_enabled = enabled;
+    m_ip6 = ip6_buf;
+    m_subnet6 = subnet;
+}
+
+void CSharedNSIfNode::set_mtu_internal(const std::string &mtu) {
+    popen_with_err("ifconfig " + m_if_name + "-T mtu " + mtu + " up", "cannot set mtu for: " + m_if_name + "-T");
+    run_in_ns("ifconfig " + m_if_name + "-L mtu " + mtu + " up", "cannot set mtu for: " + m_if_name + "-L");
 }
 
 void CSharedNSIfNode::to_json_node(Json::Value &res) {
@@ -1062,9 +1091,10 @@ bool is_dg_set_in_ns(const string &ns) {
     return out != "";
 }
 
-void run_in_ns(const string &cmd, const string &err, const string &ns) {
+void run_in_ns(const string &cmd, const string &err, const string &ns, bool throw_ex) {
     // using "cmd" for multiple commands
-    popen_with_err(("ip netns exec "  + ns + " bash -c " + "\"" + cmd + "\"").c_str(), "cannot run " + cmd + " in ns " + ns);
+    std::string out;
+    popen_with_output(("ip netns exec "  + ns + " bash -c " + "\"" + cmd + "\"").c_str(), "cannot run " + cmd + " in ns " + ns, throw_ex, out);
 }
 
 bool is_file_exists(const string &filename) {

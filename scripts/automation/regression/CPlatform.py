@@ -737,6 +737,18 @@ class CPlatform(object):
         # (res, res2) = CShowParser.parse_cvla_memory_usage(response)
         return CShowParser.parse_cvla_memory_usage(response)
 
+    def get_routing_table(self, protocol = ""):
+        cache = CCommandCache()
+        cache.add("EXEC", "show ip %s" % protocol)
+        return self.cmd_link.run_single_command(cache)
+
+    def get_routing_stats(self, protocol = ""):
+        cmd = "show ip route summary"
+        cache = CCommandCache()
+        if protocol:
+            cmd += " | sec %s" % protocol
+        cache.add("EXEC", cmd)
+        return self.cmd_link.run_single_command(cache)
 
     # clear methods
     def clear_nat_translations(self):

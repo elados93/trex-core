@@ -121,14 +121,14 @@ class PyBirdClient():
             raise ConnectionException("Cannot get protocols information when client is not connected!")
         return self._call_method('get_protocols_info', [])
 
-    def check_protocols_up(self, protocols_list, timeout=60, poll_rate=1):
+    def check_protocols_up(self, protocols_list, timeout = 60, poll_rate = 1, verbose = False):
         '''
             Query, waiting for all the bird protocols in 'protocols' list. In case bird protocols are still
             down after 'timeout' seconds, an exception will be raised. 
 
             usage example::
 
-                wait_for_protocols(['bgp1', 'rip1', 'rip2'])
+                check_protocols_up(['bgp1', 'rip1', 'rip2'])
 
             :parameters:
 
@@ -142,6 +142,8 @@ class PyBirdClient():
                 poll_rate: int
                     polling rate for bird protocols check
             
+                verbose: bool
+                    True/False for verbose mode
             :raises:
                 + :exc:`Exception` in case of any error
         '''
@@ -156,8 +158,12 @@ class PyBirdClient():
                     if protocol in split_line[0] and 'up' not in split_line[3]:
                         down_protocols.append(protocol)
             if not down_protocols:
-                return
+                if verbose:
+                    print('bird is connected to dut on protocols: "%s"' % protocols_list)
+                return True
             else:
+                if verbose:
+                    print('bird is not connected to dut, waiting for protocols: "%s"' % down_protocols)
                 time.sleep(poll_rate)
         raise Exception('timeout passed, protocols "%s" still down in bird' % down_protocols)
         
@@ -187,8 +193,9 @@ class PyBirdClient():
     def release(self):
         '''
             Release current handler from server in order to let another client acquire.
+            
             :raises:
-            + :exe: 'ConnectionException' in case of error
+                + :exc:`ConnectionError` in case client is not acquired
         '''
         if self.handler is not None:
             res = self._call_method('release', [self.handler])
@@ -200,8 +207,9 @@ class PyBirdClient():
     def disconnect(self):
         '''
             Disconnect client from server and close the socket. Must be called after releasing client.
+            
             :raises:
-            + :exe: 'ConnectionException' in case of error
+                + :exc:`ConnectionError` in case client is not connected
         '''
         if self.handler is not None:
             raise Exception('Client is acquired! run "release" first')
@@ -242,30 +250,6 @@ class PyBirdClient():
         raise ConfigurationException("Sent all the fragments, but did not get the configuration response")
 
 
-def generate_ips(start, end):
-    import socket, struct
-    start = struct.unpack('>I', socket.inet_aton(start))[0]
-    for i in range(start, start + int(end)):
-        s = '%s/32via1.1.2.3;' % socket.inet_ntoa(struct.pack('>I', i))
-        yield s.split('via')
-
-def send_many_routes(b, total_routes):
-
-    bird_cfg = BirdCFGCreator()
-
-    for dst, from_str in generate_ips("1.1.2.1", total_routes): # generate many routes
-        bird_cfg.add_route(dst, from_str)
-
-    print('Sending {:,} routes...'.format(total_routes))
-    import time
-    start = time.time()
-
-    print("Server response: %s" % b.set_config(bird_cfg.build_config()))
-
-    end = time.time()
-    print("Took: {} seconds".format(end - start))
-
-
 if __name__=='__main__':
     parser = ArgumentParser(description='Example of client module for Bird server ')
     parser.add_argument('-p','--dest-bird-port',type=int, default = 4509, dest='port',
@@ -274,17 +258,3 @@ if __name__=='__main__':
                         help='Remote server IP address .\n default is localhost\n',action='store')
 
     args = parser.parse_args()
-
-    # simple usage
-    b = PyBirdClient(args.ip, args.port)
-
-    print("connect: \n%s" % b.connect())
-    print("acquire: \n%s" % b.acquire(True))
-        
-    print("get_config: \n%s" % b.get_config())
-    print("get_protocols_info: \n%s" % b.get_protocols_info())
-
-    send_many_routes(b, rand.randint(1e6, 1e6 + 1))
-    print('-' * 50)
-    print("release: %s" % b.release() )
-    print("disconnect: %s" % b.disconnect() )

@@ -55,7 +55,8 @@ function bird_preparation {
     if [[ -n "$BIRD_PID" ]]; then
         kill $BIRD_PID
     fi
-    mkdir -p "/tmp/trex/bird"
+    mkdir -p "/tmp/trex-bird"
+    chmod -R 777 "/tmp/trex-bird"
 }
 
 function cleanup {

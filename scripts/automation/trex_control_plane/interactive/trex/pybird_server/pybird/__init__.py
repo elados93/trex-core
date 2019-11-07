@@ -7,7 +7,7 @@ from subprocess import Popen, PIPE
 
 # TODO change to something aesthetic 
 BIRD_PATH = os.path.abspath(os.path.join(__file__ ,"../../../../../../../bird"))  # trex scripts folder 
-BIRD_TMP_PATH = "/tmp/trex/bird"
+BIRD_TMP_PATH = "/tmp/trex-bird"
 CTL_PATH = "%s/bird.ctl" % BIRD_TMP_PATH  
 CONF_PATH = "%s/bird.conf" % BIRD_PATH 
 DEFAULT_CFG = """

@@ -1,4 +1,5 @@
 import re
+import socket, struct
 
 # cfg must include a dummy router id in case bird running with no interfaces
 # also must include device protocol for scanning new connections
@@ -41,17 +42,20 @@ class BirdCFGCreator:
             
             :Parameters:
                 protocol: string
-                    The protocol we are about to add i.e: bgp, rip..
+                    The protocol we are about to add 
+                        i.e: bgp, rip..
                 name: string
-                    The name of out protocol in bird i.e: bgp1, my_rip
-                    Must be unique in the cfg.
+                    The name of out protocol in bird 
+                        i.e: bgp1, my_rip
+                        Must be unique in the cfg.
                 data: string
-                    The data inside the protocol as a string i.e:
-                    "ipv4 {
-                    import all;
-                    export all;}"
+                    The data inside the protocol as a string 
+                        i.e:
+                        "ipv4 {
+                        import all;
+                        export all;}"
                 from_conf: bool
-                    Internal usage, True/False if that protocol was given by the self.cfg. Default is False
+                    Internal usage, True/False if that protocol was given by the self.cfg. False by deafult
             :raises:
                 + :exc:`Exception` - in case trying to add an existing protocol or static one with BirdCFGCreator name.
         '''
@@ -71,9 +75,11 @@ class BirdCFGCreator:
             
             :Parameters:
                 protocol: string
-                    The protocol to be removed i.e: bgp, rip. Not to be confused with the name as it in bird i.e bgp1, my_rip..
+                    The protocol to be removed 
+                        i.e: bgp, rip. Not to be confused with the name as it in bird i.e bgp1, my_rip..
                 name: string 
-                    Protocol name (as it in bird) to be removed i.e: bgp1, my_rip. Not to be confused with the protocol itself like bgp, rip..
+                    Protocol name (as it in bird) to be removed 
+                        i.e: bgp1, my_rip. Not to be confused with the protocol itself like bgp, rip..
             
             :raises:
                 + :exc:`Exception` - in case protocol was not added before or it is part of the original bird.cfg.
@@ -89,11 +95,13 @@ class BirdCFGCreator:
 
     def add_route(self, dst_cidr, next_hop):
         """
-            Adding simple route to our future cfg. Simple route is any route where after "via" there are no brackets and there is only 1 term i.e: route 1.1.1.0/24 via "eth0"
+            Adding simple route to our future cfg. Simple route is any route where after "via" there are no brackets and there is only 1 term
+                i.e: route 1.1.1.0/24 via "eth0"
             
             :Parameters:
                 dst_cidr: string
-                    Destination ip and subnetmask in cidr notation i.e: 1.1.1.0/24
+                    Destination ip and subnetmask in cidr notation
+                        i.e: 1.1.1.0/24
                 next_hop: string
                     Next hop to get the dst_cidr. 
         """
@@ -101,15 +109,37 @@ class BirdCFGCreator:
     
     def add_extended_route(self, dst_cidr, next_hop):
         """
-            Adding more complex route to our future cfg. Extended route is any route where after "via" there are more than 1 term i.e: route 10.1.1.0/24 via 198.51.100.3 { rip_metric = 3; };
+            Adding more complex route to our future cfg. Extended route is any route where after "via" there are more than 1 term 
+                i.e: route 10.1.1.0/24 via 198.51.100.3 { rip_metric = 3; };
             
             :Parameters:
                 dst_cidr: string
                     Destination ip and subnetmask in cidr notation i.e: 1.1.1.0/24
                 next_hop: string
-                    Next hop to get the dst_cidr. In extended route next_hop is more informative i.e: 198.51.100.3 { rip_metric = 3; };
+                    Next hop to get the dst_cidr. In extended route next_hop is more informative
+                        i.e: 198.51.100.3 { rip_metric = 3; };
         """
         self.extended_routes.append(ExtRoute(dst_cidr, next_hop))
+
+    def add_many_routes(self, start_ip, total_routes, next_hop, jump = 1):
+        """
+            Adding many simple routes to our future cfg. The function iterates from "start_ip" incrementing by "jump" with "total_routes" 
+            
+            :Parameters:
+                start_ip: string
+                    First ip to start to start counting from i.e: 1.1.1.2
+                
+                total_routes: string
+                    Total number of routes to add
+                
+                next_hop: string
+                    The next hop that will be in each route
+
+                jump: string
+                    The amount of ip addresses to jump from each route
+        """
+        for dst, from_str in self._generate_ips(start_ip, total_routes, next_hop, jump):
+            self.add_route(dst, from_str)
 
     def remove_route(self, dst_cidr, next_hop = None):
         '''
@@ -117,7 +147,8 @@ class BirdCFGCreator:
             
             :Parameters:
                 dst_cidr: string
-                    Destination ip and subnetmask in cidr notation i.e: 1.1.1.0/24
+                    Destination ip and subnetmask in cidr notation
+                        i.e: 1.1.1.0/24
                 next_hop: string
                     Next hop to get the dst_cidr. This is an optional argument, in case it was not provided it will remove every route with dst_cidr.
         '''
@@ -169,7 +200,14 @@ class BirdCFGCreator:
             strings_to_merge.append(static_protocol)
 
         return self.cfg + '\n'.join(strings_to_merge)
-        
+
+    def _generate_ips(self, start, total_routes, next_hop, jump):
+        start = struct.unpack('>I', socket.inet_aton(start))[0]
+        end = int(start + total_routes * jump)
+        for i in range(start, end, jump):
+            s = '%s/32via%s;' % (socket.inet_ntoa(struct.pack('>I', i)), next_hop)
+            yield s.split('via')        
+
     def _fix_protocol_data(self, data):
         """ fix opening & closing brackets for a data protocol string """
         data = data.strip()

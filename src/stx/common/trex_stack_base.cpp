@@ -139,6 +139,14 @@ trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_set_dg(const Json::Value &params, Js
     return m_obj->rpc_set_dg(shared_ns, dg);
 }
 
+trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_set_mtu(const Json::Value &params, Json::Value &result) {
+    debug({"rpc_set_mtu", pretty_json_str(params)});
+    string mac  = parse_string(params, "mac", result);
+    string mtu  = parse_string(params, "mtu", result);
+
+    return m_obj->rpc_set_mtu(mac, mtu);
+}
+
 trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_clear_ipv4(const Json::Value &params, Json::Value &result){
     debug({"rpc_clear_ipv4",pretty_json_str(params)});
     string mac   = parse_string(params, "mac", result);
@@ -239,6 +247,7 @@ void CRpcTunnelCStackBase::register_rpc_functions(){
     register_func("set_ipv4",std::bind(&CRpcTunnelCStackBase::rpc_set_ipv4, this, _1, _2));
     register_func("set_filter",std::bind(&CRpcTunnelCStackBase::rpc_set_filter, this, _1, _2));
     register_func("set_dg",std::bind(&CRpcTunnelCStackBase::rpc_set_dg, this, _1, _2));
+    register_func("set_mtu",std::bind(&CRpcTunnelCStackBase::rpc_set_mtu, this, _1, _2));
     register_func("clear_ipv4",std::bind(&CRpcTunnelCStackBase::rpc_clear_ipv4, this, _1, _2));
     register_func("set_ipv6",std::bind(&CRpcTunnelCStackBase::rpc_set_ipv6, this, _1, _2));
     register_func("remove_all",std::bind(&CRpcTunnelCStackBase::rpc_remove_all, this, _1, _2));

@@ -53,8 +53,8 @@ bgp_data2 = """
 
 bird_cfg.add_protocol(protocol = "bgp", name = "my_bgp1", data = bgp_data1)
 bird_cfg.add_protocol(protocol = "bgp", name = "my_bgp2", data = bgp_data2)
-bird_cfg.add_route(dst_cidr = "42.42.42.42/32", next_hop = "1.1.1.3")
-bird_cfg.add_route(dst_cidr = "42.42.42.43/32", next_hop = "1.1.2.3")
+bird_cfg.add_route(dst_cidr = "10.10.10.0/24", next_hop = "1.1.1.3")
+bird_cfg.add_route(dst_cidr = "10.10.20.0/24", next_hop = "1.1.2.3")
 pybird_c.set_config(new_cfg = bird_cfg.build_config())  # sending our new config
 
 # create 2 veth's in bird namespace
@@ -65,7 +65,7 @@ c.set_bird_node(node_port      = 0,
                 ipv6_enabled   = True,
                 ipv6_subnet    = 124,
                 vlans          = [22],                  # dot1q is a configuration of veth not namespace 
-                tpid           = [0x8100])
+                tpids          = [0x8100])
 
 c.set_bird_node(node_port      = 1,
                 mac            = "00:00:00:01:00:08",
@@ -75,8 +75,10 @@ c.set_bird_node(node_port      = 1,
                 ipv6_subnet    = 124)
 
 pybird_c.check_protocols_up(['my_bgp1, my_bgp2'])
-c.set_namespace(0, method='get_nodes_info', macs_list=["00:00:00:01:00:07"])
-c.set_namespace(1, method='get_nodes_info', macs_list=["00:00:00:01:00:08"])
+node_1 = c.set_namespace(0, method='get_nodes_info', macs_list=["00:00:00:01:00:07"])
+print(node_1)
+node_2 = c.set_namespace(1, method='get_nodes_info', macs_list=["00:00:00:01:00:08"])
+print(node_2)
 pybird_c.release()
 pybird_c.disconnect()
 c.disconnect()
