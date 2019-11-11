@@ -20,10 +20,12 @@ class CTRexScenario:
     is_test_list     = False
     is_init          = False
     is_stl_init      = False
+    is_bird_init     = False
     trex_crashed     = False
     configuration    = None
     trex             = None
     stl_trex         = None
+    bird_trex        = None
     astf_trex        = None
     ports_map        = None
     stl_init_error   = None
@@ -39,7 +41,7 @@ class CTRexScenario:
     benchmark        = None
     report_dir       = 'reports'
     # logger         = None
-    test_types       = {'functional_tests': [], 'stateful_tests': [], 'stateless_tests': [], 'astf_tests': [], 'wireless_tests': []}
+    test_types       = {'functional_tests': [], 'stateful_tests': [], 'stateless_tests': [], 'astf_tests': [], 'wireless_tests': [], 'bird_tests': []}
     pkg_updated      = False
     GAManager        = None
     no_daemon        = False
