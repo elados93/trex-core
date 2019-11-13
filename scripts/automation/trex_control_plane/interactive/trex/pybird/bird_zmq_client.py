@@ -19,7 +19,7 @@ class PyBirdClient():
 
     CLIENT_VERSION = "1.0"  # need to sync with bird zmq sever
 
-    def __init__(self, ip = 'localhost', port = 4509):
+    def __init__(self, ip = 'localhost', port = 4505):
         self.ip = ip
         self.socket = None
         self.context = None
@@ -52,7 +52,7 @@ class PyBirdClient():
                 raise Exception('Got from server "{}" type instead of dictionary! content: {}'.format(type(message_parsed), message_parsed))
             if 'error' in message_parsed.keys():
                 print('Error in message: "%s"' % message)
-                raise Exception('Got exception from server! message: {message}'.format(message_parsed['error']))
+                raise Exception('Got exception from server! message: %s' % (message_parsed['error']['message']))
             if 'id' not in message_parsed.keys():
                 print("Got response with no id, waiting for another one")
             elif message_parsed['id'] != id:
@@ -258,3 +258,16 @@ if __name__=='__main__':
                         help='Remote server IP address .\n default is localhost\n',action='store')
 
     args = parser.parse_args()
+
+    pybird = PyBirdClient()
+    pybird.connect()
+    pybird.acquire()
+
+    cfg_creator = BirdCFGCreator()
+    cfg_creator.add_simple_rip()
+    cfg_creator.add_many_routes("10.10.10.0", total_routes = rand.randint(0, 42), next_hop = "1.1.1.3")
+
+    # push conf file
+    print(pybird.set_config(new_cfg = cfg_creator.build_config()))
+    pybird.release()
+    pybird.disconnect()

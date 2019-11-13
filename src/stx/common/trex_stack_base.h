@@ -229,6 +229,7 @@ public:
 
     void cancel_pending_tasks();
     void cancel_running_tasks();
+    CRxCounters &get_counters() { return m_counters; }
 public:
     virtual void dummy_rpc_command(string ipv4,string ipv4_dg);
     virtual void rpc_help(const std::string & mac,const std::string & p1,const std::string & p2);

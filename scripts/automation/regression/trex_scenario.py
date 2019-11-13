@@ -30,6 +30,7 @@ class CTRexScenario:
     ports_map        = None
     stl_init_error   = None
     astf_init_error  = None
+    bird_init_error  = None
     router           = None
     router_cfg       = None
     daemon_log_lines = 0

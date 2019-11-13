@@ -232,7 +232,56 @@ class BirdCFGCreator:
 
     def __repr__(self):
         return "Routes: {}\nExtended: {}\nProtocols: {}".format(self.routes, self.extended_routes, self.protocols)
-             
+
+    # example methods
+    def add_simple_rip(self):
+        """ Add simple rip config """
+        rip_data = """
+                ipv4 {
+                    import all;
+                    export all;
+                };
+                interface "*";
+        """
+        self.add_protocol("rip", "rip1", rip_data)
+
+    def add_simple_bgp(self):
+        """ Add simple bgp config """
+        bgp_data1 = """
+            local 1.1.1.3 as 65000;
+            neighbor 1.1.1.1 as 65000;
+            ipv4 {
+                    import all;
+                    export all;
+            };
+        """
+        bgp_data2 = """
+            local 1.1.2.3 as 65000;
+            neighbor 1.1.2.1 as 65000;
+            ipv4 {
+                    import all;
+                    export all;
+            };
+        """
+        self.add_protocol("bgp", "my_bgp1", bgp_data1)
+        self.add_protocol("bgp", "my_bgp2", bgp_data2)
+
+    def add_simple_ospf(self):
+        """ Add simple ospf config """
+        ospf_data = """
+                    ipv4 {
+                            import all;
+                            export all;
+                    };
+                    area 0 {
+                            interface "*" {
+                                    type broadcast;
+                            };
+                    }; 
+        """
+        self.add_protocol("ospf", "ospf1", ospf_data)
+
+   
 class Route:
 
     ipv4_cidr_re = "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/(3[0-2]|[1-2][0-9]|[0-9]))$"

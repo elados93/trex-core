@@ -1646,13 +1646,13 @@ full API could be found link:cp_stl_docs/api/namespace.html[namespace API]
 
 ===== Types of nodes
 
-All nodes are identified by a unique MAC address, however there are some differences. There are 3 types of nodes: *Normal, Shared Namespace and Bird nodes*.
+All nodes (node==veth) are identified by a unique MAC address, however there are some differences. There are 3 types of nodes: *Normal*, *Shared Namespace* and *Bird nodes*.
 
 image::images/3_types_of_nodes.png[title="Three types of nodes",align="left",width={p_width}, link="images/3_types_of_nodes.png"]
 
-====== Normal Node
+===== Normal Node
 
-These are the default type of nodes, creating 1 namespace and 1 veth pair. Adding another new node will create another namespace with 1 veth pair. These nodes are configured by ipv4 and a default gateway.
+These are the default type of nodes, creating 1 namespace and 1 veth pair. Adding another new node will create another namespace with 1 veth pair. These nodes are configured by ipv4 and a default gateway (all traffic are forward to the default single veth)
 
 .Example of usage
 [source,python]
@@ -1668,9 +1668,10 @@ c.set_namespace(0, method='set_ipv4', mac=MAC, ipv4="1.1.1.3", dg="1.1.1.2")    
 
 More examples can be found link:trex_stateless.html#_add_one_node_using_batch_api[here]
 
-====== Shared Namespace Node
+===== Shared Namespace Node
 
-These are nodes with pre-created namespace, they only creating the veth pair on the existing namespace. That way you can create multiple veths for namespace. These nodes are configured by ipv4 and a subnet mask and also can set default gateway for the whole namespace.
+These are nodes(veth) attached to a pre-created namespace. This way you can create multiple veths attached to the same namespace. These nodes are configured by ipv4 and a subnet mask and also can set default gateway for the whole namespace (set to one of the veth)
+The configuration of Dot1Q/QinQ is per veth and not per namespace
 
 .Example of usage
 [source,python]
@@ -1693,7 +1694,7 @@ c.set_namespace(0, method='set_ipv4', mac="00:01:02:03:04:06",
 <2> creating a second veth pair in the same namespace
 <3> must specify shared_ns parameter
 
-====== Bird Node
+===== Bird Node
  
 Bird node is a specific case of shared namespace node. Bird namespace is created once running TRex with "--bird-server" flag, in that way they are similar to shared namespace.
 
@@ -1703,7 +1704,7 @@ To learn more on the usage of bird with TRex see:
 
     - link:https://trex-tgn.cisco.com/trex/doc/cp_stl_docs/api/bird_node.html[Stateless Python API - Bird Node]
 
-====== Summary of node types differences
+===== Summary of node types differences
 
 .Types of nodes differences
 |===
@@ -1727,6 +1728,11 @@ To learn more on the usage of bird with TRex see:
 |Configured at "set_ipv4/6"
 |Not in use, using subnet mask
 |===
+
+[NOTE] 
+=====================================================================
+Notice namespaces cannot communicate with each other since they are all passing packets through TRex ports to the DUT.
+=====================================================================
 
 ===== Add one node using batch API
 
@@ -1755,7 +1761,7 @@ to verify the response need to call `wait_for_async_results` API
     cmds.set_ipv6(MAC,True) # enable ipv6 (auto mode, get src addrees from the router   <6> 
 
 
-     # start the batch 
+    # start the batch 
     c.set_namespace_start( 0, cmds)                                                     <7>
     # wait for the results     
     res = c.wait_for_async_results(0)                                                   <8>
@@ -5798,6 +5804,20 @@ PyBird Client will release & disconnect anyway when the object will be destroyed
 | 10           |   1         | 1 %
 | 1,000,000    | 20          | 100% 70K route/sec
 |=============================
+
+===== Bird Console
+
+If you want to communicate directly with bird you may use "bird console". simply run:
+[source,bash]
+----
+cd scripts/bird
+./birdcl -s /tmp/trex-bird/bird.ctl  <1>
+----
+<1> default bird socket file path
+
+You can learn more of bird consol commands at link:https://bird.network.cz/?get_doc&v=20&f=bird-4.html[Bird Remote Constrol Doc].
+
+WARNING: Do not apply commands that alter bird configuration while TRex is running with bird server, only use it for query commands.
 
 === Appendix
 

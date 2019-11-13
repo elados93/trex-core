@@ -18,8 +18,8 @@ class CBirdGeneral_Test(CTRexGeneral_Test):
 
         CTRexGeneral_Test.setUp(self)
         # check basic requirements, should be verified at test_connectivity, here only skip test
-        if self.loopback:
-            self.skip('Can run only with router')
+        if not self.is_bird:
+            self.skip('Can run only with bird mode, server on linux based stack connected to a router')
         if CTRexScenario.bird_init_error:
             self.skip(CTRexScenario.bird_init_error)
 
@@ -43,33 +43,6 @@ class CBirdGeneral_Test(CTRexGeneral_Test):
         print('Error connecting: %s' % err)
         return False
 
-    def map_ports(self, tries = 10):
-        sys.stdout.write('Mapping ports')
-        for i in range(tries):
-            sys.stdout.write('.')
-            sys.stdout.flush()
-            try:
-                self.bird_trex.remove_all_captures()
-                CTRexScenario.ports_map = self.bird_trex.map_ports()
-                if self.verify_bidirectional(CTRexScenario.ports_map):
-                    print('')
-                    return True
-            except Exception as e:
-                print('\nException during mapping: %s' % e)
-                return False
-            time.sleep(0.5)
-        print('')
-        return False
-
-    # verify all the ports are bidirectional
-    @staticmethod
-    def verify_bidirectional(mapping_dict):
-        if len(mapping_dict['unknown']):
-            return False
-        if len(mapping_dict['bi']) * 2 == len(mapping_dict['map']):
-            return True
-        return False
-
     @staticmethod
     def get_port_count():
         return CTRexScenario.bird_trex.get_port_count()
@@ -80,9 +53,6 @@ class CBirdGeneral_Test(CTRexGeneral_Test):
 
 
     def config_dut(self):
-
-# TODO: ELAD, FIX ME
-
         sys.stdout.flush()
         if not CTRexScenario.router_cfg['no_dut_config']:
             sys.stdout.write('Configuring DUT... ')
@@ -90,8 +60,6 @@ class CBirdGeneral_Test(CTRexGeneral_Test):
             if CTRexScenario.router_cfg['forceCleanConfig']:
                 CTRexScenario.router.load_clean_config()
             CTRexScenario.router.configure_basic_interfaces()
-            CTRexScenario.router.config_pbr(mode = "config")
-            CTRexScenario.router.config_ipv6_pbr(mode = "config")
             sys.stdout.write('done. (%ss)\n' % int(time.time() - start_time))
 
 
@@ -100,10 +68,7 @@ class CBirdGeneral_Test(CTRexGeneral_Test):
         start_time = time.time()
         cores = self.configuration.trex.get('trex_cores', 1)
         if not CTRexScenario.no_daemon:
-
-# TODO: ELAD, ADD BIRD ARGUMENT HERE
-
-            self.trex.start_stateless(c = cores)
+            self.trex.start_stateless(c = cores, bird_server = True, i = True, cfg = 'automation/regression/setups/trex14/trex14_bird.yaml')
         sys.stdout.write('done. (%ss)\n' % int(time.time() - start_time))
 
 
@@ -156,12 +121,6 @@ class BirdBasic_Test(CBirdGeneral_Test):
             self.fail(CTRexScenario.bird_init_error)
             return
         print('Connected')
-
-        if not self.map_ports():
-            CTRexScenario.bird_init_error = 'Client could not map ports'
-            self.fail(CTRexScenario.bird_init_error)
-            return
-        print('Got ports mapping: %s' % CTRexScenario.ports_map)
 
         #update elk const object 
         if self.elk:

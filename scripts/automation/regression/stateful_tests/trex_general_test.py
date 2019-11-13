@@ -65,6 +65,7 @@ class CTRexGeneral_Test(unittest.TestCase):
         cls.is_VM             = 'VM' in cls.modes
         cls.is_dummy_ports    = 'dummy' in cls.modes
         cls.is_linux_stack    = 'linux_stack' in cls.modes
+        cls.is_bird           = 'bird' in cls.modes
         cls.is_loopback       = 'loopback' in cls.modes
         cls.is_lowend         = 'lowend' in cls.modes
         cls.is_vdev           = 'vdev' in cls.modes
@@ -464,7 +465,7 @@ class CTRexGeneral_Test(unittest.TestCase):
             if modes_conflict:
                 self.skip("The test can't run with following modes of given setup: %s " % modes_conflict)
 
-        if not self.stl_trex and not not self.bird_trex and not self.astf_trex and not self.trex.is_idle():
+        if not self.stl_trex and not self.bird_trex and not self.astf_trex and not self.trex.is_idle():
             print('Warning: TRex is not idle at setUp, trying to stop it.')
             self.trex.force_kill(confirm = False)
         if not self.is_loopback:

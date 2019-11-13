@@ -24,6 +24,7 @@
 #include "trex_rx_core.h"
 #include "pkt_gen.h"
 #include "trex_capture.h"
+#include "utl_mbuf.h"
 
 #include <zmq.h>
 
@@ -665,16 +666,29 @@ int RXPortManager::process_all_pending_pkts(bool flush_rx) {
 bool
 RXPortManager::tx_pkt(const std::string &pkt) {
     /* allocate MBUF */
-    rte_mbuf_t *m = CGlobalInfo::pktmbuf_alloc(CGlobalInfo::m_socket.port_to_socket(m_port_id), pkt.size());
-    assert(m);
+    rte_mbuf_t *m;
+    socket_id_t socket = CGlobalInfo::m_socket.port_to_socket(m_port_id);
     
-    /* allocate */
-    uint8_t *p = (uint8_t *)rte_pktmbuf_append(m, pkt.size());
-    assert(p);
-    
-    /* copy */
-    memcpy(p, pkt.c_str(), pkt.size());
-    
+    if ( likely(pkt.size() <= _2048_MBUF_SIZE) ) {
+        m = CGlobalInfo::pktmbuf_alloc_no_assert(socket, pkt.size());
+        if ( m ) {
+            /* allocate */
+            uint8_t *p = (uint8_t *)rte_pktmbuf_append(m, pkt.size());
+            assert(p);
+
+            /* copy */
+            memcpy(p, pkt.c_str(), pkt.size());
+        }
+    } else {
+        /*  creating chaning of mbuf in the size of pool */
+        rte_mempool *pool_2k = CGlobalInfo::pktmbuf_get_pool(socket, _2048_MBUF_SIZE);
+        m = utl_rte_pktmbuf_mem_to_pkt_no_assert(pkt.c_str(), pkt.size(), _2048_MBUF_SIZE, pool_2k);
+    }
+
+    if ( !m ) {
+        m_stack->get_counters().m_tx_dropped_no_mbuf++;
+        return false;
+    }
     /* send */
     bool rc = tx_pkt(m);
     if (!rc) {

@@ -1473,7 +1473,8 @@ class TRexClient(object):
                             ipv6_enabled = None,
                             ipv6_subnet = None,
                             vlans = None,
-                            tpids = None):
+                            tpids = None,
+                            mtu   = "9050"):
         """
             a utility function that works on top of :func:`set_namespace_start` and :func:`wait_for_async_results` batch operation API. 
             the function creates a "bird node" using veth's in bird namespace in trex. 
@@ -1515,6 +1516,8 @@ class TRexClient(object):
                  tpids: list
                     Array of tpidss that correspond to vlans.
                     Default is [0x8100] in case of single VLAN and [0x88a8, 0x8100] in case of QinQ.
+                 mtu: string
+                    MTU for bird node. Default is 9050
             :raises:
                 + :exc:`TRexError` in case of any error
         """
@@ -1548,8 +1551,7 @@ class TRexClient(object):
                 ArgVerify.verify(self.__class__.__name__, ver_args)
                 cmds.set_vlan(mac, vlans, tpids)
             
-            # set mtu
-            cmds.set_mtu(mac, "2048")
+            cmds.set_mtu(mac, mtu)
 
             self.set_namespace_start(node_port, cmds)
             self.wait_for_async_results(node_port)

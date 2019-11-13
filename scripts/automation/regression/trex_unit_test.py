@@ -361,6 +361,7 @@ class CTRexTestConfiguringPlugin(Plugin):
         self.collect_only   = options.collect_only
         self.functional     = options.functional
         self.stateless      = options.stateless
+        self.bird           = options.bird
         self.astf           = options.astf
         self.stateful       = options.stateful
         self.wireless       = options.wireless

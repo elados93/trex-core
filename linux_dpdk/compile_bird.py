@@ -144,3 +144,6 @@ def create_links(src_dir, links_dir):
     do_create_link(src    = src_dir + '/bird.conf',
                     name  = 'bird.conf',
                     where = links_dir)
+    do_create_link(src    = src_dir + '/birdcl',
+                    name  = 'birdcl',
+                    where = links_dir)

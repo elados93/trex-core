@@ -53,7 +53,7 @@ void str_from_mbuf(const rte_mbuf_t *m, string &result);
 void popen_with_err(const string &cmd, const string &err);
 void popen_general(const string &cmd, const string &err, bool throw_exception, string &output);
 void popen_with_output(const string &cmd, const string &err, bool throw_exception, string &output);
-void run_in_ns(const string &cmd, const string &err, const string &ns, bool throw_ex);
+bool run_in_ns(const string &cmd, const string &err, const string &ns, bool throw_ex, string &out);
 
 CMcastFilter::CMcastFilter() {
     m_vlan_nodes[0] = 0;
@@ -307,8 +307,9 @@ trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_filter(const std::string &mac, const
 
 trex_rpc_cmd_rc_e CStackLinuxBased::rpc_set_dg(const std::string &shared_ns, const std::string &dg) {
     try {
+        string out;
         string op = is_dg_set_in_ns(shared_ns) ? "change" : "add";
-        run_in_ns("ip -4 route " + op + " default via " + dg, "Could not set default IPv4 gateway for veth", shared_ns, true);
+        run_in_ns("ip -4 route " + op + " default via " + dg, "Could not set default IPv4 gateway for veth", shared_ns, true , out);
     } catch (const TrexException &ex) {
         throw TrexRpcException(ex.what());
     }
@@ -411,8 +412,12 @@ void CStackLinuxBased::run_bird_in_ns() {
     string out;
     stringstream cmd;
     cmd << " cd " << m_bird_path << "; ./trex_bird -c bird.conf -s " << bird_tmp_files << "/bird.ctl";
-    run_in_ns(cmd.str(), "Error running bird process", m_bird_ns, false);
-    popen_with_output("chmod 666 " + bird_tmp_files + "/bird.ctl", "cannot change permissions of bird.ctl for PyBird client communication", false, out);
+    bool res = run_in_ns(cmd.str(), "Error running bird process", m_bird_ns, false, out);
+    if ( !res ) {
+        std::cout << "Error running \"Bird\" output: " << out << std::endl;
+    } else {
+        popen_with_output("chmod 666 " + bird_tmp_files + "/bird.ctl", "cannot change permissions of bird.ctl for PyBird client communication", false, out);
+    }
 }
 
 void CStackLinuxBased::kill_bird_ns() {
@@ -1091,10 +1096,18 @@ bool is_dg_set_in_ns(const string &ns) {
     return out != "";
 }
 
-void run_in_ns(const string &cmd, const string &err, const string &ns, bool throw_ex) {
+bool run_in_ns(const string &cmd, const string &err, const string &ns, bool throw_ex, string &out) {
     // using "cmd" for multiple commands
-    std::string out;
-    popen_with_output(("ip netns exec "  + ns + " bash -c " + "\"" + cmd + "\"").c_str(), "cannot run " + cmd + " in ns " + ns, throw_ex, out);
+    try {
+        popen_with_output(("ip netns exec "  + ns + " bash -c " + "\"" + cmd + "\"").c_str(), "cannot run " + cmd + " in ns " + ns, true, out);
+    } catch ( TrexException e ) {
+        if ( throw_ex ) {
+            throw e;
+        } else {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool is_file_exists(const string &filename) {

@@ -1,201 +1,246 @@
 #!/usr/bin/python
-from .stl_general_test import CBirdGeneral_Test, CTRexScenario
-from trex_stl_lib.api import *
-from trex.common.stats.trex_ns import CNsStats
-from trex.common.services.trex_service_icmp import ServiceICMP 
-
-import pprint
+import time
+from trex.pybird.bird_cfg_creator import *
+from trex.pybird.bird_zmq_client import *
+from .bird_general_test import CBirdGeneral_Test, CTRexScenario
 
 
-# TODO: ELAD, CHANGE THE WHOLE FILE :)
+# global configurations
+RIP_ROUTES_NUM   = 10
+BGP_SMALL_ROUTES = 10
+BGP_MANY_ROUTES  = 1e6
+OSPF_SMALL_ROUTES = 10
+POLL_TIME        = 2
+SMALL_HANG_TIME  = 10
+MANY_HANG_TIME   = 30  # time in sec
 
-
-class BirdNS_Test(CBirdGeneral_Test):
-    """Tests for NS function """
-
+class STLBird_Test(CBirdGeneral_Test):
+    """Tests for Bird Routing Daemon """
+    
     def setUp(self):
         CBirdGeneral_Test.setUp(self)
-        if self.is_vdev:
-            self.skip("We don't know what to expect with vdev.")
-        if not (self.is_linux_stack and self.is_loopback):
-            self.skip("We need linux stack and loopback for this tests to work")
-        print('')
+
         self.bird_trex.reset()
-        self.bird_trex.set_service_mode()
+        self.bird_trex.set_service_mode(enabled = True)
+        self.bird_trex.set_port_attr(promiscuous = True, multicast = True)
+        self.pybird = PyBirdClient()
+        self.pybird.connect()
+        self.pybird.acquire(force = True)
 
     def tearDown(self):
         CBirdGeneral_Test.tearDown(self)
+        CTRexScenario.router.clear_routes()
+        self.pybird.release()
+        self.pybird.disconnect()
         self.bird_trex.set_service_mode(enabled = False)
 
-    def test_ns_add_remove(self):
-        c= self.bird_trex
+    def _conf_router_ospf(self):
+        CTRexScenario.router.configure_ospf(ospf_num = 1)
 
-        port = CTRexScenario.ports_map['bi'][0][0]
-        print('Using port %s' % port)
+    def _conf_router_bgp(self):
+        CTRexScenario.router.configure_bgp()
 
-        c.namespace_remove_all()
+    def _conf_router_rip(self):
+        CTRexScenario.router.configure_rip()
 
-        # clear counters
-        cmds=NSCmds()
-        cmds.clear_counters()
-        c.set_namespace_start(port, cmds)
-        c.wait_for_async_results(port);
+    def _check_how_many_bgp(self):
+        """ Check how many routes got to bgp table"""
+        lines = CTRexScenario.router.get_bgp_routing_table()
+        routes_num_line = [line for line in lines.splitlines() if 'network entries using' in line]
+        if routes_num_line:
+            return int(routes_num_line[0].split()[0])
+        else:
+            return 0
 
-        # add 
-        cmds=NSCmds()
-        MAC="00:01:02:03:04:05"
-        cmds.add_node(MAC)
-        cmds.set_ipv4(MAC,"1.1.1.3","1.1.1.2")
-        cmds.set_ipv6(MAC,True)
+    def _check_how_many_rip(self):
+        """ Check how many routes got to rip databse"""
+        lines = CTRexScenario.router.get_rip_routes().splitlines()
+        routes_line = [l for l in lines if l.strip().startswith("[1]")]
+        return len(routes_line)
 
-        c.set_namespace_start(port, cmds)
-        c.wait_for_async_results(port);
+    def _get_routes_num_in_table(self, protocol):
+        """ Check how many routes already in the router routing table """
+        lines = CTRexScenario.router.get_routing_stats(protocol).splitlines()
+        protocol_line = [l for l in lines if l.strip().startswith(protocol)]
+        if protocol_line:
+            return int(protocol_line[0].strip(protocol).split()[1])
+        else:
+            return 0
 
-        # get nodes
-        cmds=NSCmds()
-        cmds.get_nodes()
-        c.set_namespace_start(port, cmds)
-        r=c.wait_for_async_results(port);
-        macs=r[0]['result']['nodes']
+    def _clear_routes(self, protocol = None):
+        CTRexScenario.router.clear_routes(protocol)
 
-        print('MACs of nodes: %s' % macs)
-        if len(macs) != 1:
-           self.fail(' must be exactly one MAC')
-        if macs[0] != "00:01:02:03:04:05":
-           self.fail(' macs should include 00:01:02:03:04:05')
+    ########
+    # RIP #
+    ########
 
-        cmds=NSCmds()
-        cmds.counters_get_meta()
-        cmds.counters_get_values()
-
-        c.set_namespace_start(port, cmds)
-        r=c.wait_for_async_results(port);
-        ns_stat = CNsStats()
-        ns_stat.set_meta_values(r[0]['result']['data'], r[1]['result'][''])
-        cnt = ns_stat.get_values_stats()
-        print('Counters:')
-        pprint.pprint(cnt)
-
-        for k, v in cnt.items():
-            assert v < 1e6, 'Value is too big in counter %s=%s' % (k, v)
-        assert cnt['tx_multicast_pkts']>0, 'multicast rx counter is zero'
-
-        # remove Node
-        cmds=NSCmds()
-        cmds.remove_node(MAC)
-        c.set_namespace_start(port, cmds)
-        r=c.wait_for_async_results(port);
-
-        cmds=NSCmds()
-        cmds.get_nodes()
-        c.set_namespace_start(port, cmds)
-        r=c.wait_for_async_results(port);
-        macs=r[0]['result']['nodes']
-        print('MACs of nodes: %s' % macs)
-        if len(macs) != 0:
-            self.fail(' must be no MACs, we deleted node')
-
-        # clear counters
-        cmds=NSCmds()
-        cmds.clear_counters()
-        cmds.counters_get_meta()
-        cmds.counters_get_values()
-        c.set_namespace_start(port, cmds)
-        r=c.wait_for_async_results(port);
-
-        ns_stat = CNsStats()
-        ns_stat.set_meta_values(r[1]['result']['data'], r[2]['result'][''])
-        cnt = ns_stat.get_values_stats()
-        print('Counters:')
-        pprint.pprint(cnt)
-
-        assert len(cnt)==0, 'Counters should be zero'
-
-
-    def test_ping_to_ns(self):
-
-        if not CTRexScenario.setup_name in ('trex17'):
-            return 
-        # this test works on specific setup with specific configuration 
-        c= self.bird_trex
-        try:
-           c.set_port_attr(promiscuous = True, multicast = True)
-           cmds=NSCmds()
-           MAC="00:01:02:03:04:05"
-           cmds.add_node(MAC)
-           cmds.set_ipv4(MAC,"1.1.1.3","1.1.1.2")
-           cmds.set_ipv6(MAC,True)
-
-           c.set_namespace_start(0, cmds)
-           c.wait_for_async_results(0)
-           c.set_l3_mode_line('-p 1 --src 1.1.1.2 --dst 1.1.1.3')
-           r=c.ping_ip(1,'1.1.1.3')
-
-           assert len(r)==5, 'should be 5 responses '
-           assert r[0].state == ServiceICMP.PINGRecord.SUCCESS 
-
-
-        finally: 
-           c.set_l3_mode_line('-p 1 --src 1.1.1.2 --dst 1.1.1.1')
-           c.set_port_attr(promiscuous = False, multicast = False)
-           c.namespace_remove_all()
-
-    def test_many_ns(self):
-
-        def get_mac (prefix,index):
-            mac="{}:{:02x}:{:02x}".format(prefix,(index>>8)&0xff,(index&0xff))
-            return (mac)
-
-        def get_ipv4 (prefix,index):
-            ipv4="{}.{:d}.{:d}".format(prefix,(index>>8)&0xff,(index&0xff))
-            return(ipv4)
-
-        def build_network (size):
-            cmds=NSCmds()
-            MAC_PREFIX="00:01:02:03"
-            IPV4_PREFIX="1.1"
-            IPV4_DG ='1.1.1.2'
-            for i in range(size):
-                mac =  get_mac (MAC_PREFIX,i+257+1)
-                ipv4  = get_ipv4 (IPV4_PREFIX,259+i)
-                cmds.add_node(mac)
-                cmds.set_ipv4(mac,ipv4,IPV4_DG)
-                cmds.set_ipv6(mac,True)
-            return (cmds)
+    def test_bird_small_rip(self):
+        self._conf_router_rip()
 
         c = self.bird_trex
+        mac1 = "00:00:00:01:00:06"
+        mac2 = "00:00:00:01:00:07"
 
         try:
+            # add bird node
+            c.set_bird_node(node_port = 0, mac = mac1, ipv4 = "1.1.1.3", ipv4_subnet = 24)
+            
+            # make conf file
+            cfg_creator = BirdCFGCreator()
+            cfg_creator.add_simple_rip()
+            cfg_creator.add_many_routes("10.10.10.0", total_routes = RIP_ROUTES_NUM, next_hop = "1.1.1.3")
+
+            # push conf file
+            self.pybird.set_config(new_cfg = cfg_creator.build_config())
+
+            # get current routing from DUT
+            time.sleep(SMALL_HANG_TIME)
+            rip_routes = self._check_how_many_rip()
+            assert rip_routes == RIP_ROUTES_NUM, "%s routes did not reached router after %s sec" % (RIP_ROUTES_NUM, SMALL_HANG_TIME)
+
+        finally:
+            c.set_port_attr(promiscuous = False, multicast = False)
             c.namespace_remove_all()
-            cmds = build_network (100)
-            c.set_namespace_start(0, cmds)
-            c.wait_for_async_results(0)
 
-            cmds=NSCmds()
-            cmds.get_nodes()
-            c.set_namespace_start(0, cmds)
-            r=c.wait_for_async_results(0);
-            macs=r[0]['result']['nodes']
+    #######
+    # BGP #
+    #######
+    def test_bird_small_bgp(self):
+        self._conf_router_bgp()
+        c = self.bird_trex
+        mac1 = "00:00:00:01:00:06"
+        mac2 = "00:00:00:01:00:07"
 
-            print(macs)
-            assert len(macs) == 100, 'number of namespace is not correct '
+        try:
+            # add bird node
+            c.set_bird_node(node_port = 0, mac = mac1, ipv4 = "1.1.1.3", ipv4_subnet = 24)
+            c.set_bird_node(node_port = 1, mac = mac2, ipv4 = "1.1.2.3", ipv4_subnet = 24)
+            
+            # make conf file
+            cfg_creator = BirdCFGCreator()
+            cfg_creator.add_simple_bgp()
+            cfg_creator.add_many_routes("10.10.10.0", total_routes = BGP_SMALL_ROUTES, next_hop = "1.1.1.3")
 
-        finally: 
+            # push conf file
+            self.pybird.set_config(new_cfg = cfg_creator.build_config())
+
+            # get current routing from DUT
+            time.sleep(SMALL_HANG_TIME)
+            bgp_routes = self._check_how_many_bgp()
+            assert bgp_routes == BGP_SMALL_ROUTES, "%s routes did not reached router after %s sec" % (BGP_SMALL_ROUTES, SMALL_HANG_TIME)
+
+        finally:
+            c.set_port_attr(promiscuous = False, multicast = False)
             c.namespace_remove_all()
 
+    def test_bird_many_bgp(self):
+        self._conf_router_bgp()
+        c = self.bird_trex
+        mac1 = "00:00:00:01:00:06"
+        mac2 = "00:00:00:01:00:07"
 
+        try:
+            # add bird node
+            c.set_bird_node(node_port = 0, mac = mac1, ipv4 = "1.1.1.3", ipv4_subnet = 24)
+            c.set_bird_node(node_port = 1, mac = mac2, ipv4 = "1.1.2.3", ipv4_subnet = 24)
 
+            # take 1M conf file
+            cfg_creator = BirdCFGCreator()
+            cfg_creator.add_simple_bgp()
+            cfg_creator.add_many_routes("10.10.10.0", total_routes = BGP_MANY_ROUTES, next_hop = "1.1.1.3")
 
+            # push conf file
+            self.pybird.set_config(cfg_creator.build_config())
 
+            # check 1M routes reached DUT
+            for _ in range(MANY_HANG_TIME // POLL_TIME):
+                time.sleep(POLL_TIME)
+                routes = self._check_how_many_bgp()
+                print("Dut got %s routes" % routes)
+                if routes == BGP_MANY_ROUTES:
+                    return
+            assert routes == BGP_MANY_ROUTES, "Not all %s routes got to dut after %s min" % (BGP_MANY_ROUTES, MANY_HANG_TIME)
 
-        
+        finally:
+            c.set_port_attr(promiscuous = False, multicast = False)
+            c.namespace_remove_all()
 
+    def test_bird_bad_filter(self):
+        self._conf_router_bgp()
+        c = self.bird_trex
+        mac1 = "00:00:00:01:00:06"
+        mac2 = "00:00:00:01:00:07"
 
-        
+        try:
+            # add bird 2 nodes
+            c.set_bird_node(node_port = 0, mac = mac1, ipv4 = "1.1.1.3", ipv4_subnet = 24)
+            c.set_bird_node(node_port = 1, mac = mac2, ipv4 = "1.1.2.3", ipv4_subnet = 24)
 
+            # make conf file with 10 routes
+            cfg_creator = BirdCFGCreator()
+            cfg_creator.add_simple_bgp()
+            cfg_creator.add_many_routes("10.10.10.0", total_routes = BGP_SMALL_ROUTES, next_hop = "1.1.1.3")
 
-        
+            # push conf file
+            self.pybird.set_config(new_cfg = cfg_creator.build_config())
 
+            # check all routes got to router
+            for _ in range(SMALL_HANG_TIME // POLL_TIME):
+                time.sleep(POLL_TIME)
+                routes = self._check_how_many_bgp()
+                print("Dut got %s routes" % routes)
+                if routes == BGP_SMALL_ROUTES:
+                    break
+            else:
+                raise Exception("Not all routes got to dut after %s seconds" % SMALL_HANG_TIME)
+            
+            print('Got all the routes, now setting a bad filter for bird')
+            c.set_namespace(0, method = 'set_filter', mac = mac1, bpf_filter = 'not udp and not tcp')
+            c.set_namespace(1, method = 'set_filter', mac = mac2, bpf_filter = 'not udp and not tcp') 
+            self._clear_routes(protocol = "bgp")
 
+            # check no router do not getting routes from bird
+            time.sleep(SMALL_HANG_TIME)
+            routes = self._check_how_many_bgp()
+            print("Dut got %s routes" % routes)
+            if routes != 0:
+                raise Exception("Filter did not filtered bird packets")
 
+        finally:
+            c.set_port_attr(promiscuous = False, multicast = False)
+            c.namespace_remove_all()
 
+    ########
+    # OSPF #
+    ########
+
+    def test_bird_small_ospf(self):
+        self._conf_router_ospf()
+        c = self.bird_trex
+        mac1 = "00:00:00:01:00:06"
+        mac2 = "00:00:00:01:00:07"
+
+        try:
+            # add bird node
+            c.set_bird_node(node_port = 0, mac = mac1, ipv4 = "1.1.1.3", ipv4_subnet = 24)
+            c.set_bird_node(node_port = 1, mac = mac2, ipv4 = "1.1.2.3", ipv4_subnet = 24)
+            
+            # make conf file
+            cfg_creator = BirdCFGCreator()
+            cfg_creator.add_simple_ospf()
+            cfg_creator.add_many_routes("10.10.10.0", total_routes = OSPF_SMALL_ROUTES, next_hop = "1.1.1.3")
+
+            # push conf file
+            self.pybird.set_config(new_cfg = cfg_creator.build_config())
+
+            # get current routing from DUT
+            for _ in range(MANY_HANG_TIME // POLL_TIME):
+                time.sleep(POLL_TIME)
+                ospf_routes = self._get_routes_num_in_table("ospf 1")
+                if ospf_routes == OSPF_SMALL_ROUTES:
+                    return 
+            assert ospf_routes == OSPF_SMALL_ROUTES, "%s routes did not reached router after %s sec" % (OSPF_SMALL_ROUTES, MANY_HANG_TIME)
+
+        finally:
+            c.set_port_attr(promiscuous = False, multicast = False)
+            c.namespace_remove_all()
