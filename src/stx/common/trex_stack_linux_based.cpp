@@ -72,13 +72,13 @@ void CMcastFilter::renew_multicast_bpf() {
     if ( v0 ) {
         if ( v1 ) {
             if ( v2 ) { // all the mix
-                bpf_str = emul_pkts + " or vlan and " + emul_pkts + " or vlan and " + emul_pkts;
+                bpf_str = emul_pkts + " or (vlan and " + emul_pkts + " or (vlan and " + emul_pkts + "))";
             } else { // untagged and 1 VLAN
-                bpf_str = emul_pkts + " or vlan and " + emul_pkts;
+                bpf_str = emul_pkts + " or (vlan and " + emul_pkts + ")";
             }
         } else {
             if ( v2 ) { // untagged and 2 VLANs
-                bpf_str = emul_pkts + " or vlan and vlan and " + emul_pkts;
+                bpf_str = emul_pkts + " or (vlan and vlan and " + emul_pkts + ")";
             } else { // untagged only
                 bpf_str = emul_pkts;
             }
@@ -86,7 +86,7 @@ void CMcastFilter::renew_multicast_bpf() {
     } else {
         if ( v1 ) {
             if ( v2 ) { // 1 and 2 VLANs only
-                bpf_str = "vlan and " + emul_pkts + " or vlan and " + emul_pkts;
+                bpf_str = "vlan and " + emul_pkts + " or (vlan and " + emul_pkts + ")";
             } else { // only 1 VLAN
                 bpf_str = "vlan and " + emul_pkts;
             }
@@ -122,6 +122,12 @@ void CMcastFilter::add_empty() {
     }
 }
 
+void CMcastFilter::del_vlan(uint8_t vlans_count) {
+    m_vlan_nodes[vlans_count]--;
+    if ( m_vlan_nodes[vlans_count] == 0 ) {
+        renew_multicast_bpf();
+    }
+}
 
 /***************************************
 *          CStackLinuxBased            *
@@ -182,7 +188,7 @@ void CStackLinuxBased::handle_pkt(const rte_mbuf_t *m) {
 
         if ( pkt[0] & 1 ) {
             bool rc = bpfjit_run(m_mcast_filter.get_bpf(), pkt.c_str(), pkt.size());
-            if ( (uint8_t)pkt[0] == 0xff ) {
+           if ( (uint8_t)pkt[0] == 0xff ) {
                 if ( !rc ) {
                     m_counters.m_rx_bcast_filtered++;
                     return;
@@ -758,7 +764,9 @@ void CStackLinuxBased::init_bird() {
 
 CNamespacedIfNode::CNamespacedIfNode() {}
 
-CNamespacedIfNode::~CNamespacedIfNode() {}
+CNamespacedIfNode::~CNamespacedIfNode() {
+    m_mcast_filter->del_vlan(m_vlan_tags.size());
+}
 
 void CNamespacedIfNode::to_json_node(Json::Value &res) {
     CNodeBase::to_json_node(res);

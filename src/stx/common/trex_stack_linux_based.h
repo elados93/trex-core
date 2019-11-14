@@ -42,6 +42,7 @@ public:
     const bpf_h&    get_bpf();
     void            add_del_vlans(uint8_t add_vlan_size, uint8_t del_vlan_size);
     void            add_empty();
+    void            del_vlan(uint8_t vlans_count);
 };
 
 

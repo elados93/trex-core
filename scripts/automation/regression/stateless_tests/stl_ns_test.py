@@ -18,6 +18,7 @@ class STLNS_Test(CStlGeneral_Test):
         print('')
         self.stl_trex.reset()
         self.stl_trex.set_service_mode()
+        self.stl_trex.namespace_remove_all()    
 
     def tearDown(self):
         CStlGeneral_Test.tearDown(self)
@@ -134,6 +135,36 @@ class STLNS_Test(CStlGeneral_Test):
             c.set_l3_mode_line('-p 1 --src 1.1.1.2 --dst 1.1.1.1')
             c.set_port_attr(promiscuous = False, multicast = False)
             c.namespace_remove_all()
+
+    def test_ping_with_vlan(self):
+
+        c = self.stl_trex
+        try:
+            c.set_port_attr(promiscuous = True, multicast = True)
+            cmds=NSCmds()
+            MAC = "00:01:02:03:04:05"
+            cmds.add_node(MAC)
+            cmds.set_ipv4(MAC,"1.1.1.3","1.1.1.2")
+            cmds.set_ipv6(MAC,True)
+            cmds.set_vlan(MAC, [21], [0x8100])
+
+            mac2 = "00:01:02:03:04:06"
+            cmds.add_node(mac2)
+            cmds.set_ipv4(mac2,"1.1.1.4","1.1.1.2")
+            cmds.set_ipv6(mac2,True)
+            c.set_namespace_start(0, cmds)
+            c.wait_for_async_results(0)
+
+            c.set_l3_mode_line('-p 1 --src 1.1.1.2 --dst 1.1.1.4')
+            r = c.ping_ip(1,'1.1.1.4')
+            
+            assert len(r) == 5, 'should be 5 responses '
+            assert r[0].state == ServiceICMP.PINGRecord.SUCCESS 
+
+        finally: 
+            c.set_l3_mode_line('-p 1 --src 1.1.1.2 --dst 1.1.1.1')
+            c.set_port_attr(promiscuous = False, multicast = False)
+            c.namespace_remove_all()    
 
     def test_many_ns(self):
 
@@ -328,6 +359,7 @@ class STLNS_Test(CStlGeneral_Test):
         c = self.stl_trex
         try:
            c.set_port_attr(promiscuous = True, multicast = True)
+           c.set_namespace(0, method = 'remove_all')
            ns_name = self._create_shared_ns(port = 0)
            cmds = NSCmds()
            MAC = "00:01:02:03:04:05"
