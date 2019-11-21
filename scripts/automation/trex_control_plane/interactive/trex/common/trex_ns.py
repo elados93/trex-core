@@ -258,11 +258,16 @@ class NSCmds(object):
         cmd_params = {"mac": mac, "enable": enable}
 
         if shared_ns:
-            if subnet is None:
-                raise TRexError('Must specify subnet!')
-            ver_args['types'].append({"name": "subnet", 'arg': subnet, "t": int})
-            cmd_params["subnet"] = subnet
-            cmd_params['shared_ns'] = True
+            if not (( src_ipv6 is None and subnet is None ) or ( src_ipv6 is not None and subnet is not None )):
+                raise TRexError('Must specify ipv6 address & subnet or none of them for shared ns node!')
+            else:
+                ver_args['types'].append({"name": "subnet", 'arg': subnet, 'must': False, "t": int})
+                ver_args['types'].append({"name": "src_ipv6", 'arg': src_ipv6, 'must': False, "t": "ipv6_addr"})
+                if subnet is not None:
+                    cmd_params["subnet"] = subnet
+                cmd_params['shared_ns'] = True
+
+
         ArgVerify.verify(self.__class__.__name__, ver_args)
         if src_ipv6 is None:
             src_ipv6 = ""

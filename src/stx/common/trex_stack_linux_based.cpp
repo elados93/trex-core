@@ -1063,7 +1063,7 @@ void CSharedNSIfNode::conf_shared_ns_ip4_internal(const string &ip4_buf, uint8_t
 
 
 void CSharedNSIfNode::conf_shared_ns_ip6_internal(bool enabled, const string &ip6_buf, uint8_t subnet) {
-    if ( subnet < 1 || subnet > 128 ) {
+    if ( ip6_buf.size() && (subnet < 1 || subnet > 128) ) {
         throw TrexException("subnet: " + to_string(subnet) + " is not valid!");
     }
     clear_ip6_internal();
@@ -1074,11 +1074,11 @@ void CSharedNSIfNode::conf_shared_ns_ip6_internal(bool enabled, const string &ip
             inet_ntop(AF_INET6, ip6_buf.c_str(), buf, INET6_ADDRSTRLEN);
             string ip6_str(buf);
             run_in_ns("ip -6 addr add " + ip6_str + "/" + to_string(subnet) + " dev " + m_if_name + "-L", "Could not set IPv6 for veth");
+            m_ip6 = ip6_buf;
+            m_subnet6 = subnet;
         }
     }
     m_ip6_enabled = enabled;
-    m_ip6 = ip6_buf;
-    m_subnet6 = subnet;
 }
 
 void CSharedNSIfNode::set_mtu_internal(const std::string &mtu) {

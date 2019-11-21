@@ -1468,13 +1468,14 @@ class TRexClient(object):
     @client_api('command', True)
     def set_bird_node(self, node_port,
                             mac,
-                            ipv4 = None,
-                            ipv4_subnet = None,
+                            ipv4         = None,
+                            ipv4_subnet  = None,
                             ipv6_enabled = None,
-                            ipv6_subnet = None,
-                            vlans = None,
-                            tpids = None,
-                            mtu   = "9050"):
+                            ipv6         = None,
+                            ipv6_subnet  = None,
+                            vlans        = None,
+                            tpids        = None,
+                            mtu          = "9050"):
         """
             a utility function that works on top of :func:`set_namespace_start` and :func:`wait_for_async_results` batch operation API. 
             the function creates a "bird node" using veth's in bird namespace in trex. 
@@ -1505,7 +1506,10 @@ class TRexClient(object):
                     Ipv4 subnet for the new bird node
                  
                  ipv6_enabled: bool
-                    True/False if ipv6 enabled on the new node
+                    True/False if ipv6 enabled on the new node, mandatory for ipv6 config
+                 
+                 ipv6: string
+                    Ipv6 address for the new bird node
 
                  ipv6_subnet: int
                     Ipv6 subnet for the new bird node
@@ -1516,8 +1520,10 @@ class TRexClient(object):
                  tpids: list
                     Array of tpidss that correspond to vlans.
                     Default is [0x8100] in case of single VLAN and [0x88a8, 0x8100] in case of QinQ.
+
                  mtu: string
                     MTU for bird node. Default is 9050
+
             :raises:
                 + :exc:`TRexError` in case of any error
         """
@@ -1542,8 +1548,8 @@ class TRexClient(object):
             cmds.add_node(mac, is_bird = True)
             if ipv4 is not None and ipv4_subnet is not None:
                 cmds.set_ipv4(mac, ipv4, subnet = ipv4_subnet, shared_ns = True)
-            if ipv6_enabled is not None and ipv6_subnet is not None:
-                cmds.set_ipv6(mac, ipv6_enabled, subnet = ipv6_subnet, shared_ns = True)
+            if ipv6_enabled is not None:
+                cmds.set_ipv6(mac, ipv6_enabled, src_ipv6 = ipv6 ,subnet = ipv6_subnet, shared_ns = True)
             if vlans is not None:
                 ver_args = {"types":[{"name": "vlans", 'arg': vlans, "t": list}]}
                 if tpids is not None:

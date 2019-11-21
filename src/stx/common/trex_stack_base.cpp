@@ -167,7 +167,7 @@ trex_rpc_cmd_rc_e CRpcTunnelCStackBase::rpc_set_ipv6(const Json::Value &params, 
         }
     }
     if ( shared_ns ) {
-        uint8_t subnet = parse_int(params, "subnet", result);
+        uint8_t subnet = parse_int(params, "subnet", result, 0);
         return m_obj->rpc_set_shared_ns_ipv6(mac, enable, src_ipv6, subnet);
     } else {
         string shared_ns = parse_string(params, "shared_ns", result, "");
