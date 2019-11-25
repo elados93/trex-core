@@ -27,8 +27,8 @@ class BirdCFGCreator:
                     The given bird.conf with all the protocols as string. In case cfg_string was not supply default cfg will be filled instead
         '''
         self.cfg = cfg_string
-        self.routes = []              # i.e: route 0.0.0.0/0 via 198.51.100.130; 
-        self.extended_routes = []     # i.e:  route 192.168.10.0/24 via 198.51.100.100 {
+        self.routes = {'ipv4':[], 'ipv6': []}              # i.e: route 0.0.0.0/0 via 198.51.100.130; 
+        self.extended_routes = {'ipv4':[], 'ipv6': []}     # i.e:  route 192.168.10.0/24 via 198.51.100.100 {
                                       #            ospf_metric1 = 20;      # Set extended attribute
                                       #          }
 
@@ -105,7 +105,12 @@ class BirdCFGCreator:
                 next_hop: string
                     Next hop to get the dst_cidr. 
         """
-        self.routes.append(Route(dst_cidr, next_hop))
+        if Route.is_ipv4_cidr(dst_cidr):
+            self.routes['ipv4'].appendֿ(Route(dst_cidr, next_hop))
+        elif Route.is_ipv6_cidr(dst_cidr):
+            self.routes['ipv6'].appendֿ(Route(dst_cidr, next_hop))
+        else:
+            raise Exception("cidr: %s isn't a valid in ipv4 or ipv6" % dst_cidr)
     
     def add_extended_route(self, dst_cidr, next_hop):
         """
@@ -119,7 +124,12 @@ class BirdCFGCreator:
                     Next hop to get the dst_cidr. In extended route next_hop is more informative
                         i.e: 198.51.100.3 { rip_metric = 3; };
         """
-        self.extended_routes.append(ExtRoute(dst_cidr, next_hop))
+        if Route.is_ipv4_cidr(dst_cidr):
+            self.extended_routes['ipv4'].appendֿ(ExtRoute(dst_cidr, next_hop))
+        elif Route.is_ipv6_cidr(dst_cidr):
+            self.extended_routes['ipv6'].appendֿ(ExtRoute(dst_cidr, next_hop))
+        else:
+            raise Exception("cidr: %s isn't a valid in ipv4 or ipv6" % dst_cidr)
 
     def add_many_routes(self, start_ip, total_routes, next_hop, jump = 1):
         """
@@ -153,17 +163,18 @@ class BirdCFGCreator:
                     Next hop to get the dst_cidr. This is an optional argument, in case it was not provided it will remove every route with dst_cidr.
         '''
         wanted_route = Route(dst_cidr, next_hop)
+        all_routes = self.routes['ipv4'] + self.routes['ipv6'] + self.extended_routes['ipv4'] + self.extended_routes['ipv6']
         if next_hop is None:
             # remove only by dst ip
-            results = [r for r in self.routes if r.dst_cidr == wanted_route.dst_cidr]
-            results.extend([r for r in self.extended_routes if r.dst_cidr == wanted_route.dst_cidr])
+            results = [r for r in all_routes if r.dst_cidr == wanted_route.dst_cidr]
         else:
-            results = [r for r in self.routes if r == wanted_route]
-            results.extend([r for r in self.extended_routes if r == wanted_route])
+            results = [r for r in all_routes if r == wanted_route]
         if len(results) == 0:
             print("Did not find route: %s" % dst_cidr)
         for r in results:
-            self.routes.remove(r)
+            for l in (self.routes.values() + self.extended_routes.values())
+                if r in l:
+                    self.routes.remove(r)
 
     def build_config(self):
         '''
@@ -304,12 +315,12 @@ class Route:
         self.next_hop = next_hop
     
     @staticmethod
-    def is_ipv4_cidr(ip):
-        return re.search(Route.ipv4_cidr_re, ip)
+    def is_ipv4_cidr(cidr):
+        return re.search(Route.ipv4_cidr_re, cidr)
 
     @staticmethod
-    def is_ipv6_cidr(ip):
-        return re.search(Route.ipv6_cidr_re, ip)
+    def is_ipv6_cidr(cidr):
+        return re.search(Route.ipv6_cidr_re, cidr)
 
     def __cmp__(self, other):
         return self.dst_cidr == other.dst_cidr and self.next_hop == other.next_hop
